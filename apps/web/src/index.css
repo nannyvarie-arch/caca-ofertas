@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+@import '@caca-oferta/ui/styles';
+
+@source '../../packages/ui/src';
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-neutral-950 text-neutral-200 antialiased;
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "@caca-oferta/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Extensão Chrome do CaçaOferta (Manifest V3 + React + Vite).",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/build.mjs",
+    "build": "node scripts/build.mjs",
+    "build:extension": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src scripts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@caca-oferta/shared": "workspace:*",
+    "@caca-oferta/types": "workspace:*",
+    "@caca-oferta/ui": "workspace:*",
+    "@caca-oferta/utils": "workspace:*",
+    "lucide-react": "^1.41.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tldts": "^7.4.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/chrome": "^0.2.8",
+    "@types/node": "^26.4.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  }
+}

@@ -1,0 +1,26 @@
+# Dependências
+node_modules/
+
+# Builds e artefatos
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Ambientes e segredos (nunca versionar)
+.env
+.env.local
+.env.*.local
+!.env.example
+database/.env
+
+# Logs
+*.log
+logs/
+
+# Editor / Sistema operacional
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/untracked

@@ -1,0 +1,3 @@
+# CAÇAOFERTA — lock do provedor de migrations (Prisma).
+# NÃO edite manualmente: é gerenciado pelo Prisma Migrate.
+provider = "postgresql"

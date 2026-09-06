@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "paths": {
+      "@caca-oferta/database": ["../../database/src/index.ts"],
+      "@caca-oferta/shared": ["../../packages/shared/src/index.ts"],
+      "@caca-oferta/types": ["../../packages/types/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

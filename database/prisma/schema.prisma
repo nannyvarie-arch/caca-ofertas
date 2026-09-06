@@ -1,0 +1,190 @@
+// CAÇAOFERTA — modelo de dados (PostgreSQL + Prisma + Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  displayName String?
+  avatarUrl  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  savedAds          SavedAd[]
+  tags              Tag[]
+  notes             Note[]
+  searchHistory     SearchHistory[]
+  extensionSessions ExtensionSession[]
+  ads               Ad[]
+}
+
+// FASE 06: `Ad` é o armazenamento canônico do contrato `NormalizedAd` (tokens
+// normalizados em EN: status active/inactive/unknown, mediaType image/video/
+// carousel/unknown). `platform` neste modelo é a PLATAFORMA DE ORIGEM (meta,
+// google, ...), não o placement (facebook/instagram) — placements ficam em
+// `platforms` (Json). `runningDays`, `destinationDomainName`, `creativeUrl` e
+// `thumbnailUrl` foram adicionados na FASE 06 para honrar integralmente o
+// contrato do parser. `destinationDomainName` é uma denormalização (mirror do
+// NormalizedAd) para leitura simples nas listagens; a relação `Domain`/
+// `destinationDomainId` da FASE 01 é preservada para futuras consultas.
+model Ad {
+  id                  String   @id @default(uuid())
+  adLibraryId         String
+  platform            String
+  pageId              String?
+  pageName            String?
+  status              String?
+  deliveryStartDate   DateTime?
+  deliveryStopDate    DateTime?
+  platforms           Json?
+  mediaType           String?
+  creativeText        String?
+  headline            String?
+  description         String?
+  destinationUrl      String?
+  destinationDomainId String?
+  destinationDomainName String?
+  adSnapshotUrl       String?
+  cta                 String?
+  runningDays         Int?
+  creativeUrl         String?
+  thumbnailUrl        String?
+  userId              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  destinationDomain Domain?      @relation(fields: [destinationDomainId], references: [id])
+  user              User?        @relation(fields: [userId], references: [id])
+  creatives         AdCreative[]
+  savedAds          SavedAd[]
+
+  @@unique([adLibraryId, platform])
+  @@index([destinationDomainId])
+  @@index([pageId])
+}
+
+model AdCreative {
+  id        String   @id @default(uuid())
+  adId      String
+  kind      String
+  url       String
+  mimeType  String?
+  sizeBytes BigInt?
+  createdAt DateTime @default(now())
+
+  ad Ad @relation(fields: [adId], references: [id])
+
+  @@index([adId])
+}
+
+model Domain {
+  id        String   @id @default(uuid())
+  domain    String   @unique
+  countAds  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ads      Ad[]
+  savedAds SavedAd[]
+}
+
+model SavedAd {
+  id             String   @id @default(uuid())
+  userId         String
+  adId           String
+  adLibraryId    String
+  pageId         String?
+  domainId       String?
+  noteText       String?
+  isFavorite     Boolean  @default(false)
+  statusSnapshot String?
+  classification Int?     // 1 a 5 (classificação manual do usuário)
+  score          Int?     // 0 a 100 (score de oportunidade calculado)
+  savedAt        DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user   User      @relation(fields: [userId], references: [id])
+  ad     Ad        @relation(fields: [adId], references: [id])
+  domain Domain?   @relation(fields: [domainId], references: [id])
+  tags   AdTag[]
+  notes  Note[]
+
+  @@unique([userId, adLibraryId])
+  @@index([userId])
+  @@index([domainId])
+  @@index([adLibraryId])
+  @@index([isFavorite])
+  @@index([classification])
+  @@index([score])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  color     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id])
+  adTags AdTag[]
+
+  @@unique([userId, name])
+}
+
+model AdTag {
+  savedAdId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  savedAd SavedAd @relation(fields: [savedAdId], references: [id])
+  tag     Tag     @relation(fields: [tagId], references: [id])
+
+  @@id([savedAdId, tagId])
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  userId    String
+  savedAdId String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  savedAd SavedAd @relation(fields: [savedAdId], references: [id])
+
+  @@index([savedAdId])
+}
+
+model SearchHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  query     String
+  type      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model ExtensionSession {
+  id           String   @id @default(uuid())
+  userId       String
+  sessionToken String   @unique
+  expiresAt    DateTime
+  device       String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}

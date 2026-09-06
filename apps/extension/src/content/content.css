@@ -1,0 +1,14 @@
+/* CAÇAOFERTA — estilos globais do content script.
+   A UI da extensão vive dentro de Shadow DOMs (scoped), então este arquivo
+   fica mínimo: apenas o posicionamento do host dos badges, sem seletores
+   globais e sem tocar nas classes da Meta. O host é transparente a cliques
+   (o clique chega à Meta); apenas o botão do badge o intercepta. */
+
+[data-caca-oferta-badge] {
+  all: initial;
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+}

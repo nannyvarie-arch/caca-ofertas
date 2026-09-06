@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["vite/client", "chrome", "node"],
+    "paths": {
+      "@caca-oferta/shared": ["../../packages/shared/src/index.ts"],
+      "@caca-oferta/types": ["../../packages/types/src/index.ts"],
+      "@caca-oferta/ui": ["../../packages/ui/src/index.ts"],
+      "@caca-oferta/utils": ["../../packages/utils/src/index.ts"]
+    }
+  },
+  "include": [
+    "src",
+    "vite.content.config.ts",
+    "vite.background.config.ts",
+    "vite.ui.config.ts"
+  ]
+}

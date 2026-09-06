@@ -1,0 +1,39 @@
+{
+  "name": "caca-oferta",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CaçaOferta — Encontre ofertas. Analise anúncios. Descubra oportunidades.",
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter @caca-oferta/web dev",
+    "dev:api": "pnpm --filter @caca-oferta/api dev",
+    "dev:extension": "pnpm --filter @caca-oferta/extension dev",
+    "build": "pnpm -r build",
+    "build:web": "pnpm --filter @caca-oferta/web build",
+    "build:api": "pnpm --filter @caca-oferta/api build",
+    "build:extension": "pnpm --filter @caca-oferta/extension build",
+    "test": "pnpm -r test",
+    "test:watch": "pnpm -r --parallel test:watch",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @caca-oferta/database prisma:generate",
+    "db:validate": "pnpm --filter @caca-oferta/database prisma:validate",
+    "db:migrate": "pnpm --filter @caca-oferta/database prisma:migrate",
+    "db:studio": "pnpm --filter @caca-oferta/database prisma:studio"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0"
+  }
+}
