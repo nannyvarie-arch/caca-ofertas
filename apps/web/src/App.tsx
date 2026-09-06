@@ -438,8 +438,26 @@ export default function App() {
           {totalOfertas === 0 && (
             <EmptyState
               title="Nenhuma oferta ainda"
-              description="Conecte a extensão CaçaOferta à Meta Ads Library para começar a minerar ofertas reais."
+              description="Comece uma mineração na Meta Ads Library para encontrar e salvar suas primeiras ofertas."
+              icon={
+                <button
+                  onClick={() => handleNavigate(PATHS.MINERACAO)}
+                  className="w-16 h-16 rounded-2xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400 mb-4 hover:bg-brand-600/30 transition-colors"
+                >
+                  <Search className="h-8 w-8" />
+                </button>
+              }
             />
+          )}
+          {totalOfertas === 0 && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={() => handleNavigate(PATHS.MINERACAO)}
+                className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors"
+              >
+                Começar mineração
+              </button>
+            </div>
           )}
         </div>
       );
@@ -456,7 +474,21 @@ export default function App() {
             <span className="text-sm text-neutral-400">{totalOfertas} ofertas</span>
           </div>
           {totalOfertas === 0 ? (
-            <EmptyState title="Nenhuma oferta salva" description="Salve ofertas pelos botões nos anúncios da Biblioteca de Anúncios." icon={<Heart className="h-8 w-8" />} />
+            <div>
+              <EmptyState
+                title="Nenhuma oferta salva"
+                description="Comece uma mineração na Meta Ads Library para salvar suas primeiras ofertas."
+                icon={<Heart className="h-8 w-8" />}
+              />
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => handleNavigate(PATHS.MINERACAO)}
+                  className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors"
+                >
+                  Começar mineração
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {ofertas.map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
