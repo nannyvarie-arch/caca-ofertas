@@ -34,6 +34,7 @@ model User {
   clonedPages       ClonedPage[]
   swipeDecisions    SwipeDecision[]
   swipeCollections  SwipeCollection[]
+  keywordFavorites  KeywordFavorite[]
 }
 
 // FASE 06: `Ad` é o armazenamento canônico do contrato `NormalizedAd` (tokens
@@ -423,4 +424,87 @@ model SwipeCollectionItem {
   savedAd    SavedAd         @relation(fields: [savedAdId], references: [id], onDelete: Cascade)
 
   @@id([collectionId, savedAdId])
+}
+
+// ─── MINERAÇÃO DIÁRIA / LOW TICKET ─────────────────────────────
+
+model Offer {
+  id                String   @id @default(uuid())
+  adLibraryId       String
+  pageId            String?
+  pageName          String?
+  advertiserName    String?
+  primaryDomain     String?
+  funnelUrl         String?
+  adLibraryUrl      String?
+  niche             String?
+  subniche          String?
+  country           String?
+  language          String?
+  mediaType         String?
+  isLowTicket       Boolean  @default(false)
+  lowTicketSignals  Json     @default("[]")
+  firstSeenAt       DateTime @default(now())
+  lastSeenAt        DateTime @default(now())
+  lastRunDate       DateTime?
+  status            String   @default("coletando") // nova | subindo | estavel | caindo | morta | coletando
+  qualification     String?  // qualificada | pendente | descartada
+  isSaved           Boolean  @default(false)
+  isFavorite        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  snapshots OfferSnapshot[]
+
+  @@unique([adLibraryId])
+  @@index([status])
+  @@index([niche])
+  @@index([isLowTicket])
+  @@index([lastRunDate])
+  @@index([lastSeenAt(sort: Desc)])
+}
+
+model OfferSnapshot {
+  id           String   @id @default(uuid())
+  offerId      String
+  activeAds    Int      @default(0)
+  totalAds     Int      @default(0)
+  creativeCount Int     @default(0)
+  runningDays  Int      @default(0)
+  metadata     Json?
+  takenAt      DateTime @default(now())
+
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([offerId, takenAt(sort: Desc)])
+}
+
+model DailyMiningRun {
+  id              String   @id @default(uuid())
+  runDate         DateTime @unique
+  status          String   @default("pending") // pending | running | done | failed
+  keywordsUsed    Json     @default("[]")
+  adsFound        Int      @default(0)
+  offersUpserted  Int      @default(0)
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+
+  @@index([runDate(sort: Desc)])
+}
+
+// ─── PALAVRAS-CHAVE / KEYWORD FAVORITES ────────────────────────
+
+model KeywordFavorite {
+  id        String   @id @default(uuid())
+  userId    String
+  keyword   String
+  niche     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, keyword])
+  @@index([userId])
 }

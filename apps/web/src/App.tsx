@@ -1,10 +1,45 @@
-﻿import { Search, ChevronLeft, ChevronRight, LayoutDashboard, Flag, Zap, ShoppingCart, Heart, ArrowRightLeft, Music, ChartPie, Copy, Puzzle, HelpCircle, X, Menu, Bell, User, Wifi, WifiOff, Loader2, Star, TrendingUp, Play, Pause, Trash2, ExternalLink, Download, BookOpen, Settings, ChevronDown, Clock, AlertTriangle, CheckCircle, Filter, BarChart3, Globe, FileText, Send, RefreshCw, Save, Upload } from 'lucide-react';
+﻿import { Search, ChevronLeft, ChevronRight, LayoutDashboard, Flag, Zap, ShoppingCart, Heart, ArrowRightLeft, Music, ChartPie, Copy, Puzzle, HelpCircle, X, Menu, Bell, User, Wifi, WifiOff, Loader2, Star, TrendingUp, Play, Pause, Trash2, ExternalLink, Download, BookOpen, Settings, ChevronDown, Clock, AlertTriangle, CheckCircle, Filter, BarChart3, Globe, FileText, Send, RefreshCw, Save, Upload, Sparkles } from 'lucide-react';
 import { APP_TAGLINE } from '@caca-oferta/shared';
 import { useHealth } from './hooks/useHealth';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { EbookEditor, EbookListPage } from './EbookEditor';
 
 /* ─── Tipos ─────────────────────────────────────────────────────── */
+
+interface OfferSnapshot {
+  id: string;
+  activeAds: number;
+  totalAds: number;
+  creativeCount: number;
+  runningDays: number;
+  takenAt: string;
+}
+
+interface OfferItem {
+  id: string;
+  adLibraryId: string;
+  pageId: string | null;
+  pageName: string | null;
+  advertiserName: string | null;
+  primaryDomain: string | null;
+  funnelUrl: string | null;
+  adLibraryUrl: string | null;
+  niche: string | null;
+  subniche: string | null;
+  country: string | null;
+  language: string | null;
+  mediaType: string | null;
+  isLowTicket: boolean;
+  lowTicketSignals: string[];
+  firstSeenAt: string;
+  lastSeenAt: string;
+  lastRunDate: string | null;
+  status: string;
+  qualification: string | null;
+  isSaved: boolean;
+  isFavorite: boolean;
+  snapshots: OfferSnapshot[];
+}
 
 interface SavedAdItem {
   id: string;
@@ -308,6 +343,44 @@ function useSearchHistory() {
   return { history, loading, addSearch };
 }
 
+function useOffers(filters?: Record<string, string>) {
+  const [items, setItems] = useState<OfferItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+
+  useEffect(() => {
+    let active = true;
+    async function fetchOffers() {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams();
+        if (filters) Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+        params.append('page', String(page));
+        params.append('pageSize', String(pageSize));
+        const res = await fetch(`/api/offers?${params.toString()}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        if (!active) return;
+        setItems(data.data?.items ?? []);
+        setTotal(data.data?.total ?? 0);
+      } catch (e: any) {
+        if (!active) return;
+        setError(e.message ?? 'Erro ao carregar ofertas');
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    fetchOffers();
+    const interval = setInterval(fetchOffers, 60_000);
+    return () => { active = false; clearInterval(interval); };
+  }, [page, pageSize, filters]);
+
+  return { items, total, loading, error, page, setPage };
+}
+
 /* ─── Componentes UI ─────────────────────────────────────────────── */
 
 function IndicatorCard({ title, value, description }: { title: string; value: any; description: string }) {
@@ -321,6 +394,21 @@ function IndicatorCard({ title, value, description }: { title: string; value: an
         <small className="text-neutral-400">{description}</small>
       </div>
     </div>
+  );
+}
+
+function Sparkline({ data, width = 80, height = 24, color = '#22c55e' }: { data: number[]; width?: number; height?: number; color?: string }) {
+  if (!data.length) return null;
+  const max = Math.max(...data, 1);
+  const points = data.map((v, i) => {
+    const x = (i / Math.max(data.length - 1, 1)) * width;
+    const y = height - (v / max) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} className="inline-block">
+      <polyline fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={points} />
+    </svg>
   );
 }
 
@@ -512,59 +600,114 @@ function DashboardPage({ summary, summaryLoading, summaryError, ofertas, totalOf
 function MineracaoPage({ addSearch }: { addSearch: (q: string, t?: string) => void }) {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<{ jobId: string; status: string; message: string } | null>(null);
   const [expandedNiche, setExpandedNiche] = useState<string | null>(null);
+  const [keywordSearch, setKeywordSearch] = useState('');
 
   const niches: Record<string, string[]> = {
-    'Infoprodutos': ['curso online', 'mentoria', 'treinamento', 'ebook', 'membership', 'workshop'],
-    'E-commerce': ['loja online', 'dropshipping', 'produto physical', 'oferta limitada', 'frete grátis'],
-    'Fitness': ['emagrecimento', 'musculação', 'dieta', 'personal trainer', 'suplemento'],
-    'Finanças': ['investimento', 'renda extra', 'trading', 'criptomoeda', 'finanças pessoais'],
-    'Educação': ['curso gratuito', 'aula online', 'certificação', 'idiomas', 'concurso'],
-    'Beleza': ['skincare', 'maquiagem', 'cabelo', 'produto capilar', 'botox caseiro'],
-    'Saúde': ['remédio natural', 'suplemento', 'emagrecer', 'ansiedade', 'dor nas costas'],
-    'Tecnologia': ['software', 'SaaS', 'ferramenta online', 'app', 'automação'],
-    'Viagens': ['passagem barata', 'hotel', 'pacote de viagem', 'turismo', 'mochilão'],
-    'Alimentação': ['dieta alimentar', 'receita', 'restaurante', 'delivery', 'plano de refeições'],
-    'Pet': ['produto para pet', 'ração', 'veterinário', 'pet shop', 'cachorro'],
-    'Moda': ['roupa feminina', 'moda masculina', 'acessórios', 'bijuteria', 'sapato'],
-    'Casa': ['decoração', 'móvel', 'utensílio doméstico', 'organização', 'jardim'],
-    'Baby': ['produto para bebê', 'fralda', 'berço', 'maternidade', 'creche'],
-    'B2B': ['serviço para empresas', 'marketing', 'consultoria', 'contabilidade', 'coworking'],
-    'SaaS/API': ['integração', 'automação de marketing', 'CRM', 'ferramenta de vendas', 'API'],
+    'Emagrecimento/Fitness': ['emagrecimento', 'perder peso', 'dieta para emagrecer', 'como emagrecer rápido', 'barriga chapada', 'treino em casa', 'exercícios para emagrecer', 'musculação feminina', 'treino funcional', 'whey protein', 'termogênico', 'creatina', 'suplemento para emagrecer'],
+    'Receitas/Culinária': ['receitas low carb', 'receitas para emagrecer', 'receitas saudáveis', 'receitas fitness', 'receituário completo', 'livro de receitas', 'receitas fáceis', 'receitas rápidas', 'curso de confeitaria', 'receitas de bolos', 'decoração de bolos'],
+    'Artesanato': ['aula de crochê', 'crochê para iniciantes', 'padrões de crochê', 'crochê rentável', 'artesanato para vender', 'ideias de artesanato', 'lucro com artesanato', 'como fazer bijuterias', 'curso de bijuterias', 'materiais para bijuterias'],
+    'Educação Infantil': ['atividades para crianças', 'atividades pedagógicas', 'folhas de atividades', 'material educativo', 'apostila infantil', 'jogos educativos', 'método de alfabetização', 'como ensinar a ler', 'alfabetização divertida'],
+    'Concursos/Estudos': ['preparação para concurso', 'prova de concurso', 'edital de concurso', 'apostila de concurso', 'material para concurso', 'curso para concurso', 'técnicas de estudo', 'como estudar para provas', 'cronograma de estudos'],
+    'Renda Extra': ['renda extra', 'como ganhar dinheiro extra', 'trabalho extra de casa', 'dropshipping brasil', 'como começar dropshipping', 'fornecedor dropshipping', 'criar infoproduto', 'como vender infoprodutos', 'lançamento de infoproduto'],
+    'Marketing Digital': ['tráfego pago', 'facebook ads', 'google ads', 'anúncios online', 'copywriting', 'como vender com texto', 'páginas de venda', 'gestão de redes sociais', 'marketing de conteúdo', 'instagram para empresas'],
+    'Beleza': ['aula de maquiagem', 'maquiagem profissional', 'curso de maquiagem', 'skincare', 'rotina de skincare', 'cuidados com a pele', 'tratamento capilar', 'cuidados com o cabelo', 'produtos para cabelo'],
+    'Maternidade': ['gestação saudável', 'preparação para o parto', 'cuidados na gravidez', 'cuidados com o bebê', 'deco de berço', 'primeiros meses de vida', 'amamentação', 'dicas de amamentação', 'aleitamento materno'],
+    'Relacionamentos': ['dicas de relacionamento', 'como reconquistar', 'comunicação no namoro', 'autoconhecimento', 'desenvolvimento pessoal', 'autoestima'],
+    'Finanças Pessoais': ['controle financeiro pessoal', 'como economizar', 'planilha de gastos', 'investimentos para iniciantes', 'renda fixa', 'como investir', 'quitar dívidas', 'negociação de dívidas', 'sair do sufoco financeiro'],
+    'Desenvolvimento Pessoal': ['produtividade pessoal', 'gestão de tempo', 'hábitos produtivos', 'mindset de sucesso', 'pensamento positivo', 'motivação diária', 'liderança', 'gestão de equipes', 'desenvolvimento de liderança'],
+    'Idiomas': ['aprender inglês', 'curso de inglês', 'inglês para iniciantes', 'curso de espanhol', 'aprender espanhol', 'espanhol básico', 'curso de francês', 'curso de alemão', 'curso de italiano'],
+    'Espiritualidade': ['meditação guiada', 'como meditar', 'meditação para iniciantes', 'yoga em casa', 'aula de yoga', 'yoga para iniciantes', 'desenvolvimento espiritual', 'espiritualidade', 'meditação profunda'],
+    'Casa/Organização': ['organização doméstica', 'como organizar a casa', 'decluttering', 'decoração de ambientes', 'dicas de decoração', 'casa organizada', 'dicas de limpeza', 'limpeza profunda', 'produtos de limpeza caseiros'],
+    'Pets': ['cuidados com cachorro', 'treinamento de cachorro', 'alimentação canina', 'cuidados com gatos', 'gatos de estimação', 'alimentação felina', 'como cuidar de pet', 'pet shop em casa', 'saúde animal'],
+    'Saúde/Bem-estar': ['remédio natural', 'fitoterapia', 'medicina natural', 'como controlar ansiedade', 'ansiedade tratamento', 'dicas para ansiedade', 'dor nas costas tratamento', 'exercícios para dor nas costas', 'coluna saudável'],
+    'Intenção de Compra': ['ebook gratuito', 'ebook para download', 'livro digital', 'curso online barato', 'curso rápido', 'curso com certificado', 'planilha de controle', 'planilha financeira', 'planilha para celular'],
   };
+
+  const filteredNiches: Record<string, string[]> = keywordSearch
+    ? Object.fromEntries(Object.entries(niches).map(([k, v]) => [k, v.filter((kw: string) => kw.toLowerCase().includes(keywordSearch.toLowerCase()))]).filter(([, v]) => (v as string[]).length > 0))
+    : niches;
+
+  const totalKeywords = Object.values(niches).flat().length;
 
   const handleSearch = async () => {
     if (!query.trim()) return;
     setSearching(true);
-    addSearch(query.trim(), 'manual');
-    window.open(`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=BR&q=${encodeURIComponent(query.trim())}`, '_blank');
+    try {
+      const res = await fetch('/api/search/keyword', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: query.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSearchResult(data.data);
+        addSearch(query.trim(), 'keyword_search');
+      }
+    } catch { /* ignore */ }
+    setSearching(false);
+  };
+
+  const handleQuickSearch = async (kw: string) => {
+    setQuery(kw);
+    setSearching(true);
+    try {
+      const res = await fetch('/api/search/keyword', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSearchResult(data.data);
+        addSearch(kw, 'keyword_library');
+      }
+    } catch { /* ignore */ }
     setSearching(false);
   };
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-6">Mineração de Ofertas</h1>
+
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Pesquisar na Meta Ads Library</h2>
+        <h2 className="text-lg font-semibold text-white mb-2">Pesquisar por Palavra-chave</h2>
+        <p className="text-xs text-neutral-500 mb-4">A busca será executada em background pela extensão. Os resultados aparecerão em Ofertas Mineradas.</p>
         <div className="flex gap-3">
-          <input
-            type="text" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+          <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Ex: emagrecimento, curso online, dropshipping..."
-            className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
-          />
+            className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 outline-none" />
           <button onClick={handleSearch} disabled={searching || !query.trim()}
             className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2">
             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Pesquisar
+            Buscar
           </button>
         </div>
-        <p className="text-xs text-neutral-500 mt-2">Abrirá a Meta Ads Library em nova aba com os resultados.</p>
+
+        {searchResult && (
+          <div className="mt-4 p-3 bg-brand-600/10 border border-brand-600/30 rounded-xl">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-brand-400" />
+              <span className="text-sm text-brand-300">{searchResult.message}</span>
+            </div>
+            <p className="text-[10px] text-neutral-500 mt-1">Job ID: {searchResult.jobId}</p>
+          </div>
+        )}
       </div>
+
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-2">Biblioteca de Palavras-chave por Nicho</h2>
-        <p className="text-xs text-neutral-500 mb-4">Palavras-chave estratégicas para pesquisa de ofertas low ticket.</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Biblioteca de Palavras-chave</h2>
+            <p className="text-xs text-neutral-500">{totalKeywords} termos low ticket organizados por nicho</p>
+          </div>
+          <input type="text" value={keywordSearch} onChange={e => setKeywordSearch(e.target.value)}
+            placeholder="Filtrar..."
+            className="w-48 bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 outline-none" />
+        </div>
         <div className="space-y-2">
-          {Object.entries(niches).map(([niche, keywords]) => (
+          {Object.entries(filteredNiches).map(([niche, keywords]: [string, string[]]) => (
             <div key={niche} className="bg-neutral-900 rounded-xl overflow-hidden">
               <button onClick={() => setExpandedNiche(expandedNiche === niche ? null : niche)}
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition-colors">
@@ -577,8 +720,9 @@ function MineracaoPage({ addSearch }: { addSearch: (q: string, t?: string) => vo
               {expandedNiche === niche && (
                 <div className="px-4 pb-3 flex flex-wrap gap-2">
                   {keywords.map((kw) => (
-                    <button key={kw} onClick={() => setQuery(kw)}
-                      className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-brand-600/20 hover:text-brand-400 hover:border-brand-600/30 transition-colors">
+                    <button key={kw} onClick={() => handleQuickSearch(kw)}
+                      className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-brand-600/20 hover:text-brand-400 hover:border-brand-600/30 transition-colors flex items-center gap-1.5">
+                      <Sparkles className="h-3 w-3 text-brand-500" />
                       {kw}
                     </button>
                   ))}
@@ -877,7 +1021,25 @@ function MineracaoAutomaticaPage({ jobs, loading, createJob, runJob }: { jobs: M
   );
 }
 
-function OfertasMineradasPage({ ofertas, loading, error }: { ofertas: SavedAdItem[]; loading: boolean; error: string | null }) {
+function OfertasMineradasPage({ offers, loading, error, total, page, setPage }: { offers: OfferItem[]; loading: boolean; error: string | null; total: number; page: number; setPage: (p: number) => void }) {
+  const [nicheFilter, setNicheFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [lowTicketOnly, setLowTicketOnly] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+
+  const statusColors: Record<string, string> = {
+    nova: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
+    subindo: 'text-green-400 bg-green-400/10 border-green-400/30',
+    estavel: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
+    caindo: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
+    morta: 'text-red-400 bg-red-400/10 border-red-400/30',
+    coletando: 'text-neutral-400 bg-neutral-400/10 border-neutral-400/30',
+  };
+
+  const statusLabels: Record<string, string> = {
+    nova: 'Nova', subindo: 'Subindo', estavel: 'Estável', caindo: 'Caindo', morta: 'Morta', coletando: 'Coletando',
+  };
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
 
@@ -885,19 +1047,95 @@ function OfertasMineradasPage({ ofertas, loading, error }: { ofertas: SavedAdIte
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Ofertas Mineradas</h1>
-        <span className="text-sm text-neutral-400">{ofertas.length} ofertas coletadas</span>
+        <span className="text-sm text-neutral-400">{total} ofertas</span>
       </div>
-      {ofertas.length === 0 ? (
+
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 mb-6">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex-1 min-w-[200px]">
+            <input type="text" value={searchFilter} onChange={e => setSearchFilter(e.target.value)}
+              placeholder="Buscar por nome, domínio, nicho..."
+              className="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 outline-none" />
+          </div>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white">
+            <option value="">Todos os status</option>
+            {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <button onClick={() => setLowTicketOnly(!lowTicketOnly)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${lowTicketOnly ? 'bg-brand-600 text-white border-brand-600' : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:border-neutral-700'}`}>
+            <Zap className="h-3 w-3 inline mr-1" /> Low Ticket
+          </button>
+        </div>
+      </div>
+
+      {offers.length === 0 ? (
         <EmptyState
           title="Nenhuma oferta minerada"
-          description="Use a ferramenta de Mineração para buscar ofertas na Meta Ads Library."
+          description="Use a Mineração para buscar ofertas. A extensão coletará os dados em background."
           icon={<TrendingUp className="h-8 w-8" />}
-          action={<span className="text-xs text-neutral-500">Use o menu Mineração para começar</span>}
+          action={<span className="text-xs text-neutral-500">Instale a extensão para coleta automática</span>}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ofertas.map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {offers.map((offer) => (
+              <div key={offer.id} className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 hover:border-neutral-700 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{offer.pageName ?? offer.advertiserName ?? 'Desconhecido'}</p>
+                    <p className="text-xs text-neutral-500 truncate">{offer.primaryDomain ?? offer.adLibraryId}</p>
+                  </div>
+                  <div className="flex items-center gap-1 ml-2">
+                    {offer.isLowTicket && <span className="px-1.5 py-0.5 bg-brand-600/20 text-brand-400 text-[10px] font-medium rounded-full border border-brand-600/30">LOW</span>}
+                    <Sparkline data={offer.snapshots.map(s => s.activeAds)} width={60} height={20}
+                      color={offer.status === 'subindo' ? '#22c55e' : offer.status === 'caindo' ? '#f97316' : '#737373'} />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {offer.niche && <span className="px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded text-[10px] text-neutral-400">{offer.niche}</span>}
+                  {offer.subniche && <span className="px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded text-[10px] text-neutral-400">{offer.subniche}</span>}
+                  {offer.country && <span className="px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded text-[10px] text-neutral-400">{offer.country}</span>}
+                  {offer.mediaType && offer.mediaType !== 'unknown' && <span className="px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded text-[10px] text-neutral-400">{offer.mediaType}</span>}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-neutral-500 mb-3">
+                  <span>{offer.snapshots[0]?.activeAds ?? 0} ads ativos</span>
+                  <span>{offer.snapshots[0]?.runningDays ?? 0}d rodando</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-1 rounded-lg text-[10px] font-medium border ${statusColors[offer.status] ?? 'text-neutral-400 bg-neutral-900 border-neutral-800'}`}>
+                    {statusLabels[offer.status] ?? offer.status}
+                  </span>
+                  <div className="flex-1" />
+                  {offer.adLibraryUrl && <a href={offer.adLibraryUrl} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white transition-colors"><ExternalLink className="h-3.5 w-3.5" /></a>}
+                  {offer.funnelUrl && <a href={offer.funnelUrl} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white transition-colors"><Globe className="h-3.5 w-3.5" /></a>}
+                </div>
+
+                {offer.lowTicketSignals.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-neutral-800/50">
+                    <p className="text-[10px] text-neutral-600">{offer.lowTicketSignals.join(' · ')}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {total > 50 && (
+            <div className="flex items-center justify-center gap-4 mt-6">
+              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}
+                className="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-400 hover:border-neutral-700 disabled:opacity-50">
+                <ChevronLeft className="h-4 w-4 inline" /> Anterior
+              </button>
+              <span className="text-sm text-neutral-500">Página {page} de {Math.ceil(total / 50)}</span>
+              <button onClick={() => setPage(page + 1)} disabled={page * 50 >= total}
+                className="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-400 hover:border-neutral-700 disabled:opacity-50">
+                Próxima <ChevronRight className="h-4 w-4 inline" />
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1585,6 +1823,7 @@ export default function App() {
   const health = useHealth();
   const { data: summary, loading: summaryLoading, error: summaryError } = useDashboardSummary();
   const { items: ofertas, loading: ofertasLoading, error: ofertasError, total: totalOfertas, page, setPage } = useSavedAds();
+  const { items: offers, total: offersTotal, loading: offersLoading, error: offersError, page: offersPage, setPage: setOffersPage } = useOffers();
   const { jobs, loading: jobsLoading, createJob, runJob } = useMiningJobs();
   const { events, loading: trackingLoading } = useTrackingEvents();
   const { history, loading: historyLoading, addSearch } = useSearchHistory();
@@ -1658,7 +1897,7 @@ export default function App() {
     if (isActive(PATHS.MINERACAO)) return <MineracaoPage addSearch={addSearch} />;
     if (isActive(PATHS.RASTREAMENTO)) return <RastreamentoPage events={events} loading={trackingLoading} />;
     if (isActive(PATHS.MINERACAO_AUTOMATICA)) return <MineracaoAutomaticaPage jobs={jobs} loading={jobsLoading} createJob={createJob} runJob={runJob} />;
-    if (isActive(PATHS.OFERTAS_MINERADAS)) return <OfertasMineradasPage ofertas={ofertas} loading={ofertasLoading} error={ofertasError} />;
+    if (isActive(PATHS.OFERTAS_MINERADAS)) return <OfertasMineradasPage offers={offers} loading={offersLoading} error={offersError} total={offersTotal} page={offersPage} setPage={setOffersPage} />;
     if (isActive(PATHS.MINHAS_OFERTAS)) return <MinhasOfertasPage ofertas={ofertas} loading={ofertasLoading} error={ofertasError} totalOfertas={totalOfertas} page={page} setPage={setPage} handleToggleFavorite={handleToggleFavorite} />;
     if (isActive(PATHS.FAVORITOS)) return <FavoritosPage ofertas={ofertas} loading={ofertasLoading} />;
     if (isActive(PATHS.SWIPE)) return <SwipePage ofertas={ofertas} loading={ofertasLoading} />;
