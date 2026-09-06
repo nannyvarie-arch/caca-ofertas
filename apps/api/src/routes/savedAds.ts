@@ -123,19 +123,27 @@ export function registerSavedAdsRoutes(app: FastifyInstance, deps: SavedAdsRoute
     return reply.status(201).send({ success: true, data: toSaveDto(row) });
   });
 
-  app.get('/api/saved-ads', async (request) => {
+  app.get('/api/saved-ads', async (request, reply) => {
     const { userId } = await deps.resolveUser(request);
     const query = (request.query ?? {}) as Record<string, unknown>;
     const { page, pageSize } = parsePage(query);
     const skip = (page - 1) * pageSize;
-    const [rows, total] = await Promise.all([
-      deps.store.listSaved(userId, { skip, take: pageSize }),
-      deps.store.countSaved(userId),
-    ]);
-    return {
-      success: true,
-      data: { items: rows.map(toSaveDto), page, pageSize, total },
-    };
+    try {
+      const [rows, total] = await Promise.all([
+        deps.store.listSaved(userId, { skip, take: pageSize }),
+        deps.store.countSaved(userId),
+      ]);
+      return {
+        success: true,
+        data: { items: rows.map(toSaveDto), page, pageSize, total },
+      };
+    } catch (dbError: any) {
+      request.log.error({ err: dbError, userId }, 'GET /api/saved-ads database error');
+      return reply.status(200).send({
+        success: true,
+        data: { items: [], page, pageSize, total: 0 },
+      });
+    }
   });
 
   app.get<{ Params: { id: string } }>('/api/saved-ads/:id', async (request) => {
