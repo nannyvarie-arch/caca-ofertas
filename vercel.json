@@ -1,8 +1,4 @@
 {
-  "framework": "vite",
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm --filter @caca-oferta/web build",
-  "outputDirectory": "apps/web/dist",
   "rewrites": [
     {
       "source": "/api/:path*",
