@@ -69,26 +69,34 @@ export interface ListSavedOptions {
   take: number;
 }
 
+export interface SavedAdUpdateInput {
+  statusSnapshot?: string;
+  isFavorite?: boolean;
+  classification?: number | null;
+  score?: number | null;
+}
+
 export interface SavedAdsStore {
   findSaved(userId: string, adLibraryId: string): Promise<SavedAdRow | null>;
-  /** Lança ALREADY_SAVED (409) quando o par (userId, adLibraryId) já existe. */
   createSaved(userId: string, input: SavedAdCreateInput): Promise<SavedAdRow>;
   listSaved(userId: string, options: ListSavedOptions): Promise<SavedAdRow[]>;
   countSaved(userId: string): Promise<number>;
   findSavedById(id: string, userId: string): Promise<SavedAdRow | null>;
   deleteSavedById(id: string, userId: string): Promise<boolean>;
   upsertAd(payload: SavedAdSubmit): Promise<AdRow>;
+  toggleFavorite(id: string, userId: string): Promise<SavedAdRow>;
+  updateSaved(id: string, userId: string, input: SavedAdUpdateInput): Promise<SavedAdRow>;
   // FASE 11 — Tags
-  listTags?(userId: string, adLibraryId?: string): Promise<TagDto[]>;
-  createTag?(userId: string, input: { name: string; color?: string; adLibraryId: string }): Promise<TagDto>;
-  deleteTag?(userId: string, tagId: string): Promise<boolean>;
+  listTags(userId: string, adLibraryId?: string): Promise<TagDto[]>;
+  createTag(userId: string, input: { name: string; color?: string; adLibraryId: string }): Promise<TagDto>;
+  deleteTag(userId: string, tagId: string): Promise<boolean>;
   // FASE 11 — Notas
-  listNotes?(userId: string, savedAdId?: string): Promise<NoteDto[]>;
-  createNote?(userId: string, input: { body: string; savedAdId: string }): Promise<NoteDto>;
+  listNotes(userId: string, savedAdId?: string): Promise<NoteDto[]>;
+  createNote(userId: string, input: { body: string; savedAdId: string }): Promise<NoteDto>;
   // FASE 11 — Classificação e Score
-  getClassification?(userId: string, savedAdId: string): Promise<ClassificationDto>;
-  setClassification?(userId: string, input: { savedAdId: string; classification: number }): Promise<{ classification: number; score: number }>;
-  calculateScore?(userId: string, savedAdId: string): Promise<number>;
+  getClassification(userId: string, savedAdId: string): Promise<ClassificationDto>;
+  setClassification(userId: string, input: { savedAdId: string; classification: number }): Promise<{ classification: number; score: number }>;
+  calculateScore(userId: string, savedAdId: string): Promise<number>;
 }
 
 function toUtcDate(iso: string | null): Date | null {
@@ -274,9 +282,192 @@ export function createPrismaSavedAdsStore(client: PrismaClient): SavedAdsStore {
       })) as PrismaAdScalar;
       return mapAd(ad);
     },
+
+    // ─── FAVORITE TOGGLE ───────────────────────────────────────────
+    async toggleFavorite(id, userId) {
+      const row = (await client.savedAd.findFirst({
+        where: { id, userId },
+        include: { ad: true },
+      })) as PrismaSavedRowWithAd | null;
+      if (!row) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+      const updated = (await client.savedAd.update({
+        where: { id },
+        data: { isFavorite: !row.isFavorite },
+        include: { ad: true },
+      })) as PrismaSavedRowWithAd;
+      return mapSaved(updated);
+    },
+
+    // ─── UPDATE SAVED AD ───────────────────────────────────────────
+    async updateSaved(id, userId, input) {
+      const row = (await client.savedAd.findFirst({
+        where: { id, userId },
+      }));
+      if (!row) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+      const updated = (await client.savedAd.update({
+        where: { id },
+        data: {
+          ...(input.statusSnapshot !== undefined && { statusSnapshot: input.statusSnapshot }),
+          ...(input.isFavorite !== undefined && { isFavorite: input.isFavorite }),
+          ...(input.classification !== undefined && { classification: input.classification }),
+          ...(input.score !== undefined && { score: input.score }),
+        },
+        include: { ad: true },
+      })) as PrismaSavedRowWithAd;
+      return mapSaved(updated);
+    },
+
+    // ─── FASE 11 — TAGS ────────────────────────────────────────────
+    async listTags(userId, adLibraryId?) {
+      const where: any = { userId };
+      if (adLibraryId) {
+        where.savedAd = { adLibraryId };
+      }
+      const tags = await client.tag.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+      });
+      return tags.map((t) => ({
+        id: t.id,
+        name: t.name,
+        color: t.color ?? undefined,
+        isDefault: t.isDefault,
+        createdAt: t.createdAt.toISOString(),
+        adLibraryId: adLibraryId ?? '',
+      }));
+    },
+
+    async createTag(userId, input) {
+      const savedAd = await client.savedAd.findFirst({
+        where: { userId, adLibraryId: input.adLibraryId },
+      });
+      if (!savedAd) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+
+      try {
+        const tag = await client.tag.create({
+          data: {
+            userId,
+            name: input.name,
+            color: input.color,
+            adTags: {
+              create: { savedAdId: savedAd.id },
+            },
+          },
+        });
+        return {
+          id: tag.id,
+          name: tag.name,
+          color: tag.color ?? undefined,
+          isDefault: tag.isDefault,
+          createdAt: tag.createdAt.toISOString(),
+          adLibraryId: input.adLibraryId,
+        };
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          throw new ApiError(409, ERROR_CODES.VALIDATION_ERROR, 'Tag já existe para este usuário.');
+        }
+        throw error;
+      }
+    },
+
+    async deleteTag(userId, tagId) {
+      const tag = await client.tag.findFirst({ where: { id: tagId, userId } });
+      if (!tag) return false;
+      await client.adTag.deleteMany({ where: { tagId } });
+      await client.tag.delete({ where: { id: tagId } });
+      return true;
+    },
+
+    // ─── FASE 11 — NOTAS ───────────────────────────────────────────
+    async listNotes(userId, savedAdId?) {
+      const where: any = { userId };
+      if (savedAdId) {
+        where.savedAdId = savedAdId;
+      }
+      const notes = await client.note.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+      });
+      return notes.map((n) => ({
+        id: n.id,
+        body: n.body,
+        createdAt: n.createdAt.toISOString(),
+        updatedAt: n.updatedAt.toISOString(),
+        savedAdId: n.savedAdId,
+      }));
+    },
+
+    async createNote(userId, input) {
+      const savedAd = await client.savedAd.findFirst({
+        where: { id: input.savedAdId, userId },
+      });
+      if (!savedAd) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+      const note = await client.note.create({
+        data: {
+          userId,
+          savedAdId: input.savedAdId,
+          body: input.body,
+        },
+      });
+      return {
+        id: note.id,
+        body: note.body,
+        createdAt: note.createdAt.toISOString(),
+        updatedAt: note.updatedAt.toISOString(),
+        savedAdId: note.savedAdId,
+      };
+    },
+
+    // ─── FASE 11 — CLASSIFICAÇÃO E SCORE ───────────────────────────
+    async getClassification(userId, savedAdId) {
+      const row = await client.savedAd.findFirst({
+        where: { id: savedAdId, userId },
+      });
+      if (!row) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+      return { classification: row.classification ?? 0, score: row.score ?? 0 };
+    },
+
+    async setClassification(userId, input) {
+      if (input.classification < 1 || input.classification > 5) {
+        throw new ApiError(400, ERROR_CODES.VALIDATION_ERROR, 'Classificação deve estar entre 1 e 5.');
+      }
+      const row = await client.savedAd.findFirst({
+        where: { id: input.savedAdId, userId },
+        include: { ad: true },
+      });
+      if (!row) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+
+      const score = calculatePrismaScore(row, row.ad as PrismaAdScalar | null);
+      const updated = await client.savedAd.update({
+        where: { id: input.savedAdId },
+        data: { classification: input.classification, score },
+      });
+      return { classification: updated.classification ?? input.classification, score: updated.score ?? score };
+    },
+
+    async calculateScore(userId, savedAdId) {
+      const row = await client.savedAd.findFirst({
+        where: { id: savedAdId, userId },
+        include: { ad: true },
+      });
+      if (!row) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+      return calculatePrismaScore(row, row.ad as PrismaAdScalar | null);
+    },
   };
 }
 
 function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+/** Score determinístico para Prisma store — replicas a lógica do memory store. */
+function calculatePrismaScore(row: { savedAt: Date; statusSnapshot: string | null }, ad: PrismaAdScalar | null): number {
+  let score = 0;
+  const daysSinceSaved = Math.max(0, Math.floor((Date.now() - row.savedAt.getTime()) / (1000 * 60 * 60 * 24)));
+  score += Math.max(0, 30 - daysSinceSaved);
+  if (row.statusSnapshot === 'active' || row.statusSnapshot === 'running') score += 20;
+  if (ad?.runningDays !== null && ad?.runningDays !== undefined && ad.runningDays > 7) score += 10;
+  if (ad?.runningDays !== null && ad?.runningDays !== undefined && ad.runningDays > 0 && ad.runningDays <= 3) score += 5;
+  if (ad?.platforms && Array.isArray(ad.platforms) && ad.platforms.length > 1) score += 5;
+  return Math.min(100, Math.max(0, score));
 }

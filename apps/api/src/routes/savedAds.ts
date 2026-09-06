@@ -160,6 +160,20 @@ export function registerSavedAdsRoutes(app: FastifyInstance, deps: SavedAdsRoute
     return { success: true, data: { id: request.params.id, deleted: true } };
   });
 
+  // FAVORITE TOGGLE
+  app.patch<{ Params: { id: string } }>('/api/saved-ads/:id/favorite', async (request) => {
+    const { userId } = await deps.resolveUser(request);
+    const row = await deps.store.toggleFavorite(request.params.id, userId);
+    return { success: true, data: toSaveDto(row) };
+  });
+
+  // UPDATE SAVED AD (classification, score, status)
+  app.patch<{ Params: { id: string }; Body: { classification?: number; statusSnapshot?: string } }>('/api/saved-ads/:id', async (request) => {
+    const { userId } = await deps.resolveUser(request);
+    const row = await deps.store.updateSaved(request.params.id, userId, request.body);
+    return { success: true, data: toSaveDto(row) };
+  });
+
   // FASE 11 — Tags
   app.get<{ Params: { id: string } }>('/api/saved-ads/:id/tags', async (request, _reply) => {
     const { userId } = await deps.resolveUser(request);

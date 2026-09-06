@@ -6,6 +6,9 @@ import { registerErrorHandler } from './lib/apiError';
 import { resolveCurrentUser, type CurrentUserResolver } from './lib/currentUser';
 import { registerHealthRoutes } from './routes/health';
 import { registerSavedAdsRoutes } from './routes/savedAds';
+import { registerSearchHistoryRoutes } from './routes/searchHistory';
+import { registerMiningRoutes } from './routes/mining';
+import { registerTrackingRoutes } from './routes/tracking';
 import { createPrismaSavedAdsStore, type SavedAdsStore } from './services/savedAdsStore';
 
 export interface BuildServerOptions {
@@ -25,10 +28,16 @@ export function buildServer(options: BuildServerOptions = {}): ReturnType<typeof
   registerErrorHandler(server);
   registerHealthRoutes(server);
 
+  const resolveUser = options.resolveUser ?? resolveCurrentUser;
+
   registerSavedAdsRoutes(server, {
     store: options.savedAdsStore ?? createPrismaSavedAdsStore(getPrisma()),
-    resolveUser: options.resolveUser ?? resolveCurrentUser,
+    resolveUser,
   });
+
+  registerSearchHistoryRoutes(server, { resolveUser });
+  registerMiningRoutes(server, { resolveUser });
+  registerTrackingRoutes(server, { resolveUser });
 
   return server;
 }

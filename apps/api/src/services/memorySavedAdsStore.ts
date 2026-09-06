@@ -18,7 +18,7 @@
 import type { SavedAdSubmit } from '@caca-oferta/shared';
 import { ApiError, ERROR_CODES } from '../lib/apiError';
 import type { TagDto, NoteDto } from '@caca-oferta/shared';
-import { AD_ORIGIN_PLATFORM, type AdRow, type ListSavedOptions, type SavedAdCreateInput, type SavedAdRow, type SavedAdsStore } from './savedAdsStore';
+import { AD_ORIGIN_PLATFORM, type AdRow, type ListSavedOptions, type SavedAdCreateInput, type SavedAdRow, type SavedAdsStore, type SavedAdUpdateInput } from './savedAdsStore';
 
 function utcDate(iso: string | null): Date | null {
   return iso ? new Date(`${iso}T00:00:00.000Z`) : null;
@@ -286,6 +286,25 @@ export function createMemorySavedAdsStore(): SavedAdsStore {
       };
       adsByKey.set(key, next);
       return next;
+    },
+
+    async toggleFavorite(id, userId) {
+      const row = findSavedById(id, userId);
+      if (!row) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+      row.isFavorite = !row.isFavorite;
+      row.updatedAt = new Date().toISOString();
+      return row;
+    },
+
+    async updateSaved(id, userId, input) {
+      const row = findSavedById(id, userId);
+      if (!row) throw new ApiError(404, ERROR_CODES.NOT_FOUND, 'Oferta não encontrada.');
+      if (input.statusSnapshot !== undefined) row.statusSnapshot = input.statusSnapshot;
+      if (input.isFavorite !== undefined) row.isFavorite = input.isFavorite;
+      if (input.classification !== undefined) row.classification = input.classification;
+      if (input.score !== undefined) row.score = input.score;
+      row.updatedAt = new Date().toISOString();
+      return row;
     },
   };
 }

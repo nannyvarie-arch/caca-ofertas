@@ -24,6 +24,9 @@ model User {
   searchHistory     SearchHistory[]
   extensionSessions ExtensionSession[]
   ads               Ad[]
+  miningSearches    MiningSearch[]
+  trackingEvents    TrackingEvent[]
+  miningJobs        MiningJob[]
 }
 
 // FASE 06: `Ad` é o armazenamento canônico do contrato `NormalizedAd` (tokens
@@ -116,6 +119,7 @@ model SavedAd {
   domain Domain?   @relation(fields: [domainId], references: [id])
   tags   AdTag[]
   notes  Note[]
+  trackingEvents TrackingEvent[]
 
   @@unique([userId, adLibraryId])
   @@index([userId])
@@ -188,4 +192,57 @@ model ExtensionSession {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+// ─── NOVOS MODELOS (FASE B2) ──────────────────────────────────────
+
+model MiningSearch {
+  id          String   @id @default(uuid())
+  userId      String
+  query       String
+  type        String   @default("manual") // manual | automatic | domain
+  niche       String?
+  resultsCount Int     @default(0)
+  savedCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model TrackingEvent {
+  id          String   @id @default(uuid())
+  userId      String
+  savedAdId   String
+  eventType   String   // status_change | creative_change | domain_change
+  field       String   // deliveryStartDate | deliveryStopDate | status | creativeText
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  savedAd SavedAd @relation(fields: [savedAdId], references: [id])
+
+  @@index([savedAdId, createdAt(sort: Desc)])
+  @@index([userId])
+}
+
+model MiningJob {
+  id           String   @id @default(uuid())
+  userId       String
+  query        String
+  niche        String?
+  maxResults   Int      @default(50)
+  status       String   @default("pending") // pending | running | completed | failed
+  resultsFound Int      @default(0)
+  savedCount   Int      @default(0)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
 }

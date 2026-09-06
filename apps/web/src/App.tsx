@@ -1,11 +1,9 @@
-﻿import { Search, ChevronLeft, ChevronRight, LayoutDashboard, Flag, Zap, ShoppingCart, Heart, ArrowRightLeft, Music, ChartPie, Copy, Puzzle, HelpCircle, X, Menu, Bell, User, Wifi, WifiOff, Loader2, Star, TrendingUp } from 'lucide-react';
+﻿import { Search, ChevronLeft, ChevronRight, LayoutDashboard, Flag, Zap, ShoppingCart, Heart, ArrowRightLeft, Music, ChartPie, Copy, Puzzle, HelpCircle, X, Menu, Bell, User, Wifi, WifiOff, Loader2, Star, TrendingUp, Play, Pause, Trash2, ExternalLink, Download, BookOpen, Settings, ChevronDown, Clock, AlertTriangle, CheckCircle, Filter, BarChart3, Globe, FileText, Send, RefreshCw } from 'lucide-react';
 import { APP_TAGLINE } from '@caca-oferta/shared';
 import { useHealth } from './hooks/useHealth';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 
-/* ------------------------------------------------------------------ */
-/*  Tipos                                                              */
-/* ------------------------------------------------------------------ */
+/* ─── Tipos ─────────────────────────────────────────────────────── */
 
 interface SavedAdItem {
   id: string;
@@ -50,15 +48,46 @@ interface DashboardSummary {
   topDomains: { domain: string; count: number }[];
 }
 
+interface MiningJob {
+  id: string;
+  query: string;
+  niche: string | null;
+  maxResults: number;
+  status: string;
+  resultsFound: number;
+  savedCount: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+interface TrackingEvent {
+  id: string;
+  savedAdId: string;
+  adLibraryId: string | null;
+  pageName: string | null;
+  eventType: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+}
+
+interface SearchHistoryItem {
+  id: string;
+  query: string;
+  type: string;
+  createdAt: string;
+}
+
 type ViewState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'empty' }
   | { status: 'ready'; items: SavedAdItem[]; total: number };
 
-/* ------------------------------------------------------------------ */
-/*  Caminhos                                                           */
-/* ------------------------------------------------------------------ */
+/* ─── Caminhos ──────────────────────────────────────────────────── */
 
 const PATHS = {
   DASHBOARD: '/dashboard',
@@ -80,27 +109,20 @@ const PATHS = {
 const NAV_ITEMS = [
   { href: PATHS.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', group: 'Principal' },
   { href: PATHS.MINERACAO, icon: Search, label: 'Mineração', group: 'Principal' },
-  { href: PATHS.RASTREAMENTO, icon: Flag, label: 'Rastreamento de Ofertas', group: 'Principal' },
-  { href: PATHS.MINERACAO_AUTOMATICA, icon: Zap, label: 'Mineração Automática', group: 'Principal' },
+  { href: PATHS.RASTREAMENTO, icon: Flag, label: 'Rastreamento', group: 'Principal' },
+  { href: PATHS.MINERACAO_AUTOMATICA, icon: Zap, label: 'Min. Automática', group: 'Principal' },
   { href: PATHS.OFERTAS_MINERADAS, icon: TrendingUp, label: 'Ofertas Mineradas', group: 'Principal' },
   { href: PATHS.MINHAS_OFERTAS, icon: ShoppingCart, label: 'Minhas Ofertas', group: 'Principal' },
   { href: PATHS.FAVORITOS, icon: Heart, label: 'Favoritos', group: 'Principal' },
   { href: PATHS.SWIPE, icon: ArrowRightLeft, label: 'Swipe', group: 'Análise' },
-  { href: PATHS.TRANSCRICAO, icon: Music, label: 'Transcrição de Mídias', group: 'Análise' },
+  { href: PATHS.TRANSCRICAO, icon: Music, label: 'Transcrição', group: 'Análise' },
   { href: PATHS.ANALISE_TRAFEGO, icon: ChartPie, label: 'Análise de Tráfego', group: 'Análise' },
   { href: PATHS.CLONAR_PAGINAS, icon: Copy, label: 'Clonar Páginas', group: 'Análise' },
   { href: PATHS.EXTENSAO, icon: Puzzle, label: 'Extensão', group: 'Ferramentas' },
-  { href: PATHS.AJUDA, icon: HelpCircle, label: 'Ajuda / Tutoriais', group: 'Ferramentas' },
+  { href: PATHS.AJUDA, icon: HelpCircle, label: 'Ajuda', group: 'Ferramentas' },
 ];
 
-function getGroupedNav(): Record<string, typeof NAV_ITEMS> {
-  return NAV_ITEMS.reduce((acc, item) => {
-    const group = acc[item.group] ?? [];
-    group.push(item);
-    acc[item.group] = group;
-    return acc;
-  }, {} as Record<string, typeof NAV_ITEMS>);
-}
+/* ─── Hooks ──────────────────────────────────────────────────────── */
 
 function useDashboardSummary() {
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -215,6 +237,105 @@ function useSavedAds(filters?: Record<string, string>) {
   return { items, loading: isLoading, error, page, setPage, pageSize, total };
 }
 
+function useMiningJobs() {
+  const [jobs, setJobs] = useState<MiningJob[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchJobs() {
+      try {
+        const res = await fetch('/api/mining/jobs', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          setJobs(data.data ?? []);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    fetchJobs();
+  }, []);
+
+  const createJob = async (query: string, niche?: string, maxResults?: number) => {
+    const res = await fetch('/api/mining/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, niche, maxResults }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setJobs(prev => [data.data, ...prev]);
+      return data.data;
+    }
+    return null;
+  };
+
+  const runJob = async (id: string) => {
+    const res = await fetch(`/api/mining/jobs/${id}/run`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      setJobs(prev => prev.map(j => j.id === id ? { ...j, status: 'running' } : j));
+    }
+  };
+
+  return { jobs, loading, createJob, runJob };
+}
+
+function useTrackingEvents() {
+  const [events, setEvents] = useState<TrackingEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchEvents() {
+      try {
+        const res = await fetch('/api/tracking', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          setEvents(data.data ?? []);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    fetchEvents();
+  }, []);
+
+  return { events, loading };
+}
+
+function useSearchHistory() {
+  const [history, setHistory] = useState<SearchHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchHistory() {
+      try {
+        const res = await fetch('/api/search-history', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          setHistory(data.data ?? []);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    fetchHistory();
+  }, []);
+
+  const addSearch = async (query: string, type?: string) => {
+    const res = await fetch('/api/search-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, type }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setHistory(prev => [data.data, ...prev]);
+    }
+  };
+
+  return { history, loading, addSearch };
+}
+
+/* ─── Componentes UI ─────────────────────────────────────────────── */
+
 function IndicatorCard({ title, value, description }: { title: string; value: any; description: string }) {
   return (
     <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 hover:border-neutral-700 transition-colors">
@@ -229,7 +350,7 @@ function IndicatorCard({ title, value, description }: { title: string; value: an
   );
 }
 
-function OfferCard({ ad }: { ad: SavedAdItem }) {
+function OfferCard({ ad, onToggleFavorite }: { ad: SavedAdItem; onToggleFavorite?: (id: string) => void }) {
   const mediaTypeLabels: Record<string, string> = {
     image: 'Imagem', video: 'Vídeo', carousel: 'Carrossel', unknown: 'Desconhecido',
   };
@@ -277,19 +398,27 @@ function OfferCard({ ad }: { ad: SavedAdItem }) {
             </div>
           )}
         </div>
+        <button
+          onClick={() => onToggleFavorite?.(ad.id)}
+          className={`shrink-0 p-1.5 rounded-lg transition-colors ${ad.isFavorite ? 'text-red-400 hover:text-red-300' : 'text-neutral-600 hover:text-neutral-400'}`}
+          title={ad.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+        >
+          <Heart className={`h-4 w-4 ${ad.isFavorite ? 'fill-current' : ''}`} />
+        </button>
       </div>
     </div>
   );
 }
 
-function EmptyState({ title, description, icon }: { title: string; description: string; icon?: React.ReactNode }) {
+function EmptyState({ title, description, icon, action }: { title: string; description: string; icon?: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       {icon ?? <div className="w-16 h-16 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-600 mb-4">
         <Search className="h-8 w-8" />
       </div>}
       <p className="text-xl font-semibold text-white mb-2">{title}</p>
-      <p className="text-sm text-neutral-400 max-w-md">{description}</p>
+      <p className="text-sm text-neutral-400 max-w-md mb-4">{description}</p>
+      {action}
     </div>
   );
 }
@@ -306,7 +435,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry?: () => voi
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="w-16 h-16 rounded-2xl bg-red-950/30 border border-red-900/50 flex items-center justify-center text-red-400 mb-4">
-        <span className="text-2xl">⚠</span>
+        <AlertTriangle className="h-8 w-8" />
       </div>
       <p className="text-xl font-semibold text-white mb-2">Erro ao carregar</p>
       <p className="text-sm text-neutral-400 mb-4 max-w-md">{message}</p>
@@ -319,16 +448,643 @@ function ErrorState({ message, onRetry }: { message: string; onRetry?: () => voi
   );
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    pending: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
+    running: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
+    completed: 'text-green-400 bg-green-400/10 border-green-400/30',
+    failed: 'text-red-400 bg-red-400/10 border-red-400/30',
+  };
+  const labels: Record<string, string> = {
+    pending: 'Pendente', running: 'Executando', completed: 'Concluído', failed: 'Falhou',
+  };
+  return (
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${styles[status] ?? styles.pending}`}>
+      {labels[status] ?? status}
+    </span>
+  );
+}
+
+/* ─── Páginas ────────────────────────────────────────────────────── */
+
+function DashboardPage({ summary, summaryLoading, summaryError, ofertas, totalOfertas, page, setPage, handleNavigate }: any) {
+  if (summaryLoading) return <LoadingState />;
+  if (summaryError) return <ErrorState message={summaryError} onRetry={() => window.location.reload()} />;
+  if (!summary) return <EmptyState title="Sem dados" description="Conecte a API ou salve ofertas para começar." />;
+
+  return (
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <IndicatorCard title="Ofertas salvas" value={summary.totalOfertas} description="Total" />
+        <IndicatorCard title="Ativas" value={summary.ativas} description="Com status ativo" />
+        <IndicatorCard title="Inativas" value={summary.inativas} description="Encerradas" />
+        <IndicatorCard title="Domínios" value={summary.domniosUnicos} description="Únicos" />
+        <IndicatorCard title="Score médio" value={summary.mediaScore ? `${summary.mediaScore}` : '—'} description="Oportunidade (0-100)" />
+        <IndicatorCard title="Classif. média" value={summary.mediaClassificacao ? `${summary.mediaClassificacao}/5` : '—'} description="De 1 a 5 estrelas" />
+      </div>
+      {totalOfertas > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold text-white mb-4">Ofertas em Destaque</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {ofertas.slice(0, 6).map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
+          </div>
+        </div>
+      )}
+      {totalOfertas === 0 && (
+        <EmptyState
+          title="Nenhuma oferta ainda"
+          description="Comece uma mineração na Meta Ads Library para encontrar e salvar suas primeiras ofertas."
+          action={
+            <button onClick={() => handleNavigate(PATHS.MINERACAO)} className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors">
+              Começar mineração
+            </button>
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function MineracaoPage({ addSearch }: { addSearch: (q: string, t?: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+
+  const niches = ['Infoprodutos', 'E-commerce', 'Fitness', 'Finanças', 'Educação', 'Beleza', 'Saúde', 'Tecnologia', 'Viagens', 'Alimentação'];
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    addSearch(query.trim(), 'manual');
+    window.open(`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=BR&q=${encodeURIComponent(query.trim())}`, '_blank');
+    setSearching(false);
+  };
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Mineração de Ofertas</h1>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Pesquisar na Meta Ads Library</h2>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="Ex: emagrecimento, curso online, dropshipping..."
+            className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+          <button
+            onClick={handleSearch}
+            disabled={searching || !query.trim()}
+            className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Pesquisar
+          </button>
+        </div>
+        <p className="text-xs text-neutral-500 mt-2">Abrirá a Meta Ads Library em nova aba com os resultados da pesquisa.</p>
+      </div>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Nichos Populares</h2>
+        <div className="flex flex-wrap gap-2">
+          {niches.map((niche) => (
+            <button
+              key={niche}
+              onClick={() => { setQuery(niche); }}
+              className="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors"
+            >
+              {niche}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RastreamentoPage({ events, loading }: { events: TrackingEvent[]; loading: boolean }) {
+  if (loading) return <LoadingState />;
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Rastreamento de Ofertas</h1>
+      {events.length === 0 ? (
+        <EmptyState
+          title="Nenhum evento de rastreamento"
+          description="Salve ofertas e configure rastreamento para monitorar mudanças de status, criativos e domínios."
+          icon={<Flag className="h-8 w-8" />}
+        />
+      ) : (
+        <div className="space-y-3">
+          {events.map((event) => (
+            <div key={event.id} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white font-medium">{event.pageName ?? event.adLibraryId ?? 'Oferta'}</p>
+                  <p className="text-xs text-neutral-500">{event.field}: {event.oldValue ?? '—'} → {event.newValue ?? '—'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={event.eventType} />
+                  <span className="text-xs text-neutral-500">{new Date(event.createdAt).toLocaleDateString('pt-BR')}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MineracaoAutomaticaPage({ jobs, loading, createJob, runJob }: { jobs: MiningJob[]; loading: boolean; createJob: (q: string, n?: string, m?: number) => Promise<any>; runJob: (id: string) => Promise<void> }) {
+  const [query, setQuery] = useState('');
+  const [niche, setNiche] = useState('');
+  const [maxResults, setMaxResults] = useState(50);
+
+  const handleCreate = async () => {
+    if (!query.trim()) return;
+    await createJob(query.trim(), niche || undefined, maxResults);
+    setQuery('');
+  };
+
+  const statusOrder: Record<string, number> = { running: 0, pending: 1, completed: 2, failed: 3 };
+  const sortedJobs = [...jobs].sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Mineração Automática</h1>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Novo Job de Mineração</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Palavra-chave ou frase"
+            className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+          <input
+            type="text"
+            value={niche}
+            onChange={(e) => setNiche(e.target.value)}
+            placeholder="Nicho (opcional)"
+            className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+          <input
+            type="number"
+            value={maxResults}
+            onChange={(e) => setMaxResults(Number(e.target.value))}
+            min={10}
+            max={200}
+            placeholder="Máx. resultados"
+            className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+        </div>
+        <button
+          onClick={handleCreate}
+          disabled={!query.trim()}
+          className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+        >
+          <Zap className="h-4 w-4" />
+          Criar Job
+        </button>
+      </div>
+
+      {loading ? <LoadingState /> : (
+        <div className="space-y-3">
+          {sortedJobs.length === 0 ? (
+            <EmptyState
+              title="Nenhum job de mineração"
+              description="Crie um job acima para começar a mineração automática de ofertas."
+              icon={<Zap className="h-8 w-8" />}
+            />
+          ) : (
+            sortedJobs.map((job) => (
+              <div key={job.id} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-medium">{job.query}</p>
+                    <p className="text-xs text-neutral-500">
+                      {job.niche && `Nicho: ${job.niche} · `}
+                      {job.resultsFound} resultados · {job.savedCount} salvos
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={job.status} />
+                    {job.status === 'pending' && (
+                      <button onClick={() => runJob(job.id)} className="p-2 text-green-400 hover:text-green-300 transition-colors" title="Executar">
+                        <Play className="h-4 w-4" />
+                      </button>
+                    )}
+                    {job.status === 'running' && (
+                      <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                    )}
+                  </div>
+                </div>
+                {job.errorMessage && (
+                  <p className="text-xs text-red-400 mt-2">{job.errorMessage}</p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OfertasMineradasPage({ ofertas, loading, error }: { ofertas: SavedAdItem[]; loading: boolean; error: string | null }) {
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Ofertas Mineradas</h1>
+        <span className="text-sm text-neutral-400">{ofertas.length} ofertas coletadas</span>
+      </div>
+      {ofertas.length === 0 ? (
+        <EmptyState
+          title="Nenhuma oferta minerada"
+          description="Use a ferramenta de Mineração para buscar ofertas na Meta Ads Library."
+          icon={<TrendingUp className="h-8 w-8" />}
+          action={
+            <button onClick={() => window.location.hash = '#/mineracao'} className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors">
+              Ir para Mineração
+            </button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {ofertas.map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MinhasOfertasPage({ ofertas, loading, error, totalOfertas, page, setPage, handleToggleFavorite }: any) {
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Minhas Ofertas</h1>
+        <span className="text-sm text-neutral-400">{totalOfertas} ofertas</span>
+      </div>
+      {totalOfertas === 0 ? (
+        <EmptyState
+          title="Nenhuma oferta salva"
+          description="Comece uma mineração na Meta Ads Library para salvar suas primeiras ofertas."
+          icon={<Heart className="h-8 w-8" />}
+          action={
+            <button onClick={() => window.location.hash = '#/mineracao'} className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors">
+              Começar mineração
+            </button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {ofertas.map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} onToggleFavorite={handleToggleFavorite} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FavoritosPage({ ofertas, loading }: { ofertas: SavedAdItem[]; loading: boolean }) {
+  if (loading) return <LoadingState />;
+  const favorites = ofertas.filter((a: SavedAdItem) => a.isFavorite);
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Favoritos</h1>
+      {favorites.length === 0 ? (
+        <EmptyState title="Nenhum favorito" description="Clique no ícone de coração nas ofertas para adicioná-las aos favoritos." icon={<Heart className="h-8 w-8" />} />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {favorites.map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SwipePage({ ofertas, loading }: { ofertas: SavedAdItem[]; loading: boolean }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [decisions, setDecisions] = useState<{ id: string; decision: 'like' | 'save' | 'skip' }[]>([]);
+
+  const unprocessed = ofertas.filter((ad) => !decisions.find((d) => d.id === ad.id));
+  const currentAd = unprocessed[0];
+
+  const handleDecision = (decision: 'like' | 'save' | 'skip') => {
+    if (!currentAd) return;
+    setDecisions((prev) => [...prev, { id: currentAd.id, decision }]);
+  };
+
+  if (loading) return <LoadingState />;
+  if (ofertas.length === 0) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-white mb-6">Swipe</h1>
+        <EmptyState title="Nenhuma oferta para analisar" description="Salve ofertas primeiro para usar o modo swipe." icon={<ArrowRightLeft className="h-8 w-8" />} />
+      </div>
+    );
+  }
+
+  if (!currentAd) {
+    const likes = decisions.filter((d) => d.decision === 'like').length;
+    const saves = decisions.filter((d) => d.decision === 'save').length;
+    const skips = decisions.filter((d) => d.decision === 'skip').length;
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-white mb-6">Swipe — Concluído</h1>
+        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-8 text-center">
+          <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-4" />
+          <p className="text-xl font-bold text-white mb-2">Todas as ofertas analisadas!</p>
+          <div className="flex justify-center gap-6 mt-4">
+            <div><p className="text-2xl font-bold text-green-400">{likes}</p><p className="text-xs text-neutral-500">Curtidas</p></div>
+            <div><p className="text-2xl font-bold text-blue-400">{saves}</p><p className="text-xs text-neutral-500">Salvas</p></div>
+            <div><p className="text-2xl font-bold text-neutral-400">{skips}</p><p className="text-xs text-neutral-500">Ignoradas</p></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Swipe</h1>
+      <div className="max-w-lg mx-auto">
+        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+          <OfferCard ad={currentAd} />
+        </div>
+        <div className="flex justify-center gap-4">
+          <button onClick={() => handleDecision('skip')} className="px-8 py-3 bg-neutral-800 text-neutral-300 rounded-xl font-medium hover:bg-neutral-700 transition-colors flex items-center gap-2">
+            <X className="h-5 w-5" /> Ignorar
+          </button>
+          <button onClick={() => handleDecision('save')} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" /> Salvar
+          </button>
+          <button onClick={() => handleDecision('like')} className="px-8 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2">
+            <Heart className="h-5 w-5" /> Curtir
+          </button>
+        </div>
+        <p className="text-center text-xs text-neutral-500 mt-4">{decisions.length} de {ofertas.length} analisadas</p>
+      </div>
+    </div>
+  );
+}
+
+function TranscricaoPage() {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Transcrição de Mídias</h1>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+        <div className="text-center py-8">
+          <Music className="h-12 w-12 text-neutral-600 mx-auto mb-4" />
+          <p className="text-lg font-semibold text-white mb-2">Serviço de Transcrição</p>
+          <p className="text-sm text-neutral-400 max-w-md mx-auto mb-6">
+            Para usar a transcrição de mídias, configure um provedor de Speech-to-Text (ex: OpenAI Whisper, Google Speech-to-Text).
+          </p>
+          <div className="bg-neutral-900 rounded-xl p-4 max-w-md mx-auto text-left">
+            <p className="text-xs text-neutral-500 mb-2">Variáveis de ambiente necessárias:</p>
+            <code className="text-xs text-brand-400 block">STT_PROVIDER=openai</code>
+            <code className="text-xs text-brand-400 block">STT_API_KEY=sua-chave-aqui</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnaliseTrafegoPage({ ofertas }: { ofertas: SavedAdItem[] }) {
+  const [url, setUrl] = useState('');
+  const domainCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    ofertas.forEach((ad) => {
+      if (ad.destinationDomain) {
+        counts[ad.destinationDomain] = (counts[ad.destinationDomain] || 0) + 1;
+      }
+    });
+    return Object.entries(counts).sort(([, a], [, b]) => b - a);
+  }, [ofertas]);
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Análise de Tráfego</h1>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Analisar Domínio</h2>
+        <div className="flex gap-3 mb-4">
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="exemplo.com.br"
+            className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+          <button className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2">
+            <Globe className="h-4 w-4" /> Analisar
+          </button>
+        </div>
+      </div>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Domínios Mais Frequentes</h2>
+        {domainCounts.length === 0 ? (
+          <p className="text-sm text-neutral-500">Nenhum domínio encontrado nas ofertas salvas.</p>
+        ) : (
+          <div className="space-y-2">
+            {domainCounts.slice(0, 10).map(([domain, count]) => (
+              <div key={domain} className="flex items-center justify-between bg-neutral-900 rounded-lg px-4 py-2">
+                <span className="text-sm text-white font-mono">{domain}</span>
+                <span className="text-xs text-brand-400 font-bold">{count} anúncios</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ClonarPaginasPage() {
+  const [url, setUrl] = useState('');
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Clonar Páginas</h1>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Análise Estrutural</h2>
+        <p className="text-sm text-neutral-400 mb-4">Insira a URL de uma página para analisar sua estrutura, títulos, links e tecnologias utilizadas.</p>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://exemplo.com/pagina"
+            className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+          <button className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2">
+            <Copy className="h-4 w-4" /> Analisar
+          </button>
+        </div>
+      </div>
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+        <EmptyState
+          title="Pronto para análise"
+          description="Cole uma URL acima e clique em Analisar para ver a estrutura da página."
+          icon={<Copy className="h-8 w-8" />}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ExtensaoPage({ health }: { health: any }) {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Extensão Chrome</h1>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            {health.status === 'online' ? <Wifi className="h-5 w-5 text-status-active" /> : <WifiOff className="h-5 w-5 text-status-inactive" />}
+            <span className={`font-medium ${health.status === 'online' ? 'text-status-active' : 'text-status-inactive'}`}>
+              {health.status === 'online' ? 'API Online' : 'API Offline'}
+            </span>
+          </div>
+          <p className="text-sm text-neutral-400 mb-4">
+            A extensão CaçaOferta detecta anúncios automaticamente na Meta Ads Library e permite salvar ofertas diretamente.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
+              <span className="text-sm text-neutral-300">Service Worker</span>
+              <span className="text-xs text-brand-400 font-mono">Manifest V3</span>
+            </div>
+            <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
+              <span className="text-sm text-neutral-300">Content Script</span>
+              <span className="text-xs text-brand-400">Meta Ads Library</span>
+            </div>
+            <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
+              <span className="text-sm text-neutral-300">Detecção</span>
+              <span className="text-xs text-brand-400">4 camadas fallback</span>
+            </div>
+            <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
+              <span className="text-sm text-neutral-300">Palavras-chave</span>
+              <span className="text-xs text-brand-400">150+ palavras, 15 nichos</span>
+            </div>
+          </div>
+        </div>
+        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Como Instalar</h2>
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">1</div>
+              <div>
+                <p className="text-sm text-white font-medium">Baixe a extensão</p>
+                <p className="text-xs text-neutral-500">Faça download do pacote da extensão</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">2</div>
+              <div>
+                <p className="text-sm text-white font-medium">Abra chrome://extensions</p>
+                <p className="text-xs text-neutral-500">Ative o "Modo do desenvolvedor"</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">3</div>
+              <div>
+                <p className="text-sm text-white font-medium">Carregue descompactada</p>
+                <p className="text-xs text-neutral-500">Clique em "Carregar extensão descompactada" e selecione a pasta</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">4</div>
+              <div>
+                <p className="text-sm text-white font-medium">Acesse a Meta Ads Library</p>
+                <p className="text-xs text-neutral-500">A extensão ativa automaticamente na página</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 p-3 bg-neutral-900 rounded-lg">
+            <p className="text-xs text-neutral-500">
+              <strong className="text-neutral-400">Dica:</strong> A extensão funciona apenas em{' '}
+              <code className="text-brand-400">facebook.com/ads/library</code>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AjudaPage() {
+  const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
+
+  const topics = [
+    { id: 'mining', title: 'Como minerar ofertas', icon: Search, content: 'Use o menu Mineração para buscar palavras-chave na Meta Ads Library. A pesquisa abre uma nova aba com os resultados. Salve as ofertas interessantes para análise posterior.' },
+    { id: 'tracking', title: 'Rastreamento de ofertas', icon: Flag, content: 'Salve uma oferta e use o sistema de rastreamento para monitorar mudanças de status, criativos e domínios ao longo do tempo.' },
+    { id: 'auto-mining', title: 'Mineração automática', icon: Zap, content: 'Crie jobs de mineração automática definindo palavras-chave e nichos. O sistema busca resultados periodicamente e salva ofertas automaticamente.' },
+    { id: 'favorites', title: 'Gerenciar favoritos', icon: Heart, content: 'Clique no ícone de coração em qualquer oferta para adicioná-la aos favoritos. Acesse seus favoritos rapidamente pelo menu lateral.' },
+    { id: 'swipe', title: 'Modo Swipe', icon: ArrowRightLeft, content: 'Analise ofertas rapidamente deslizando para curtir, salvar ou ignorar. Uma forma eficiente de processar muitas ofertas.' },
+    { id: 'classification', title: 'Classificação e Score', icon: Star, content: 'Classifique ofertas de 1 a 5 estrelas. O score de oportunidade (0-100) é calculado automaticamente baseado em recência, status e plataforma.' },
+    { id: 'domains', title: 'Análise de domínios', icon: Globe, content: 'Use a Análise de Tráfego para ver quais domínios aparecem mais nas ofertas coletadas. Identifique nichos mais lucrativos.' },
+    { id: 'extension', title: 'Instalar extensão', icon: Puzzle, content: 'Baixe a extensão, ative o modo desenvolvedor no Chrome e carregue a pasta descompactada. A extensão ativa automaticamente na Meta Ads Library.' },
+    { id: 'pages', title: 'Clonar páginas', icon: Copy, content: 'Cole a URL de uma página de vendas para analisar sua estrutura, títulos, links e tecnologias utilizadas.' },
+    { id: 'transcription', title: 'Transcrição de mídias', icon: Music, content: 'Configure um provedor de Speech-to-Text para transcrever áudio e vídeo de criativos de anúncios.' },
+    { id: 'keyboard', title: 'Atalhos de teclado', icon: Settings, content: 'Ctrl+K: Abrir pesquisa global. Use o menu lateral para navegar entre as seções.' },
+    { id: 'data', title: 'Exportar dados', icon: Download, content: 'Suas ofertas são salvas no banco de dados. Use a API para exportar dados em formato JSON para análise externa.' },
+    { id: 'support', title: 'Suporte', icon: HelpCircle, content: 'Em caso de dúvidas ou problemas, acesse o repositório no GitHub ou entre em contato pelo canal de suporte.' },
+  ];
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-white mb-6">Ajuda / Tutoriais</h1>
+      <div className="space-y-3">
+        {topics.map((topic) => (
+          <div key={topic.id} className="bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setExpandedTopic(expandedTopic === topic.id ? null : topic.id)}
+              className="w-full flex items-center gap-3 p-4 text-left hover:bg-neutral-900 transition-colors"
+            >
+              <topic.icon className="h-5 w-5 text-brand-400 shrink-0" />
+              <span className="font-medium text-white flex-1">{topic.title}</span>
+              <ChevronDown className={`h-4 w-4 text-neutral-500 transition-transform ${expandedTopic === topic.id ? 'rotate-180' : ''}`} />
+            </button>
+            {expandedTopic === topic.id && (
+              <div className="px-4 pb-4">
+                <p className="text-sm text-neutral-400 leading-relaxed">{topic.content}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── App Principal ──────────────────────────────────────────────── */
+
+function getGroupedNav(): Record<string, typeof NAV_ITEMS> {
+  return NAV_ITEMS.reduce((acc, item) => {
+    const group = acc[item.group] ?? [];
+    group.push(item);
+    acc[item.group] = group;
+    return acc;
+  }, {} as Record<string, typeof NAV_ITEMS>);
+}
+
 export default function App() {
   const health = useHealth();
   const { data: summary, loading: summaryLoading, error: summaryError } = useDashboardSummary();
   const { items: ofertas, loading: ofertasLoading, error: ofertasError, total: totalOfertas, page, setPage } = useSavedAds();
+  const { jobs, loading: jobsLoading, createJob, runJob } = useMiningJobs();
+  const { events, loading: trackingLoading } = useTrackingEvents();
+  const { history, loading: historyLoading, addSearch } = useSearchHistory();
 
   const [pathname, setPathname] = useState(window.location.pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -337,7 +1093,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Redirect
   useEffect(() => {
     if (pathname === '/' || pathname === '') {
       window.history.replaceState(null, '', PATHS.DASHBOARD);
@@ -352,23 +1107,16 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  const handleToggleFavorite = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/saved-ads/${id}/favorite`, { method: 'PATCH' });
+      window.location.reload();
+    } catch { /* ignore */ }
+  }, []);
+
   const currentPath = pathname || PATHS.DASHBOARD;
   const isActive = (href: string) => currentPath === href;
-
   const groupedNav = useMemo(() => getGroupedNav(), []);
-
-  // Keyboard shortcut for search
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setShowSearch(!showSearch);
-        setTimeout(() => searchInputRef.current?.focus(), 50);
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSearch]);
 
   const sidebarContent = (
     <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto" aria-label="Navegação principal">
@@ -396,261 +1144,21 @@ export default function App() {
   );
 
   const pageContent = () => {
-    // Dashboard
     if (isActive(PATHS.DASHBOARD) || currentPath === '') {
-      if (summaryLoading) return <LoadingState />;
-      if (summaryError) return <ErrorState message={summaryError} onRetry={() => window.location.reload()} />;
-      if (!summary) return <EmptyState title="Sem dados" description="Conecte a API ou salve ofertas para começar." />;
-
-      return (
-        <div>
-          {/* Indicadores */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            <IndicatorCard title="Ofertas salvas" value={summary.totalOfertas} description="Total" />
-            <IndicatorCard title="Ativas" value={summary.ativas} description="Com status ativo" />
-            <IndicatorCard title="Inativas" value={summary.inativas} description="Encerradas" />
-            <IndicatorCard title="Domínios" value={summary.domniosUnicos} description="Únicos" />
-            <IndicatorCard title="Score médio" value={summary.mediaScore ? `${summary.mediaScore}` : '—'} description="Oportunidade (0-100)" />
-            <IndicatorCard title="Classif. média" value={summary.mediaClassificacao ? `${summary.mediaClassificacao}/5` : '—'} description="De 1 a 5 estrelas" />
-          </div>
-
-          {/* Ofertas em Destaque */}
-          {totalOfertas > 0 && (
-            <div className="mt-8">
-              <h2 className="text-xl font-bold text-white mb-4">Ofertas em Destaque</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {ofertas.slice(0, 6).map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
-              </div>
-              {totalOfertas > 6 && (
-                <div className="mt-6 flex justify-center gap-2">
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-900 text-neutral-300 text-sm hover:bg-neutral-800 disabled:opacity-40">
-                    ← Anterior
-                  </button>
-                  <span className="px-3 py-1.5 text-sm text-neutral-400">{page}</span>
-                  <button onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-900 text-neutral-300 text-sm hover:bg-neutral-800">
-                    Próxima →
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {totalOfertas === 0 && (
-            <EmptyState
-              title="Nenhuma oferta ainda"
-              description="Comece uma mineração na Meta Ads Library para encontrar e salvar suas primeiras ofertas."
-              icon={
-                <button
-                  onClick={() => handleNavigate(PATHS.MINERACAO)}
-                  className="w-16 h-16 rounded-2xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400 mb-4 hover:bg-brand-600/30 transition-colors"
-                >
-                  <Search className="h-8 w-8" />
-                </button>
-              }
-            />
-          )}
-          {totalOfertas === 0 && (
-            <div className="flex justify-center mt-4">
-              <button
-                onClick={() => handleNavigate(PATHS.MINERACAO)}
-                className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors"
-              >
-                Começar mineração
-              </button>
-            </div>
-          )}
-        </div>
-      );
+      return <DashboardPage summary={summary} summaryLoading={summaryLoading} summaryError={summaryError} ofertas={ofertas} totalOfertas={totalOfertas} page={page} setPage={setPage} handleNavigate={handleNavigate} />;
     }
-
-    // Minhas Ofertas
-    if (isActive(PATHS.MINHAS_OFERTAS)) {
-      if (ofertasLoading) return <LoadingState />;
-      if (ofertasError) return <ErrorState message={ofertasError} />;
-      return (
-        <div>
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-white">Minhas Ofertas</h1>
-            <span className="text-sm text-neutral-400">{totalOfertas} ofertas</span>
-          </div>
-          {totalOfertas === 0 ? (
-            <div>
-              <EmptyState
-                title="Nenhuma oferta salva"
-                description="Comece uma mineração na Meta Ads Library para salvar suas primeiras ofertas."
-                icon={<Heart className="h-8 w-8" />}
-              />
-              <div className="flex justify-center mt-4">
-                <button
-                  onClick={() => handleNavigate(PATHS.MINERACAO)}
-                  className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors"
-                >
-                  Começar mineração
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {ofertas.map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // Favoritos
-    if (isActive(PATHS.FAVORITOS)) {
-      const favorites = ofertas.filter((a: SavedAdItem) => a.isFavorite);
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Favoritos</h1>
-          {favorites.length === 0 ? (
-            <EmptyState title="Nenhum favorito" description="Adicione ofertas aos favoritos para encontrá-las rapidamente." icon={<Heart className="h-8 w-8" />} />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {favorites.map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // Pesquisa
-    if (isActive(PATHS.PESQUISA)) {
-      return (
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-6">Pesquisa</h1>
-          <div className="relative mb-6">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-500" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por domínio, página, CTA..."
-              className="w-full bg-neutral-900 border border-neutral-800 rounded-xl pl-10 pr-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
-            />
-          </div>
-          {ofertas.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {ofertas.slice(0, 20).map((ad: SavedAdItem) => <OfferCard key={ad.id} ad={ad} />)}
-            </div>
-          ) : (
-            <EmptyState title="Sem resultados" description="Ajuste os filtros de busca ou conecte a extensão para minerar ofertas." />
-          )}
-        </div>
-      );
-    }
-
-    // Rastreamento
-    if (isActive(PATHS.RASTREAMENTO)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Rastreamento de Ofertas</h1>
-          <EmptyState title="Rastreamento" description="Marque ofertas para acompanhar e receber atualizações sobre mudanças." icon={<Flag className="h-8 w-8" />} />
-        </div>
-      );
-    }
-
-    // Mineração Automática
-    if (isActive(PATHS.MINERACAO_AUTOMATICA)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Mineração Automática</h1>
-          <EmptyState title="Configure sua mineração" description="Defina palavras-chave, nichos, domínios e bibliotecas para mineração automática." icon={<Zap className="h-8 w-8" />} />
-        </div>
-      );
-    }
-
-    // Swipe
-    if (isActive(PATHS.SWIPE)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Swipe</h1>
-          <EmptyState title="Analise ofertas rapidamente" description="Deslize para curtir, salvar ou ignorar ofertas." icon={<ArrowRightLeft className="h-8 w-8" />} />
-        </div>
-      );
-    }
-
-    // Extensão
-    if (isActive(PATHS.EXTENSAO)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Extensão Chrome</h1>
-          <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-4">
-              {health.status === 'online' ? (
-                <Wifi className="h-5 w-5 text-status-active" />
-              ) : (
-                <WifiOff className="h-5 w-5 text-status-inactive" />
-              )}
-              <span className={`font-medium ${health.status === 'online' ? 'text-status-active' : 'text-status-inactive'}`}>
-                {health.status === 'checking' ? 'Verificando...' : health.status === 'online' ? 'API online' : 'API offline'}
-              </span>
-            </div>
-            <p className="text-sm text-neutral-400 mb-4">
-              A extensão CaçaOferta atua como ponte entre a Meta Ads Library e a API CaçaOferta.
-            </p>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
-                <span className="text-sm text-neutral-300">Service Worker</span>
-                <span className="text-xs text-brand-400 font-mono">Manifest V3</span>
-              </div>
-              <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
-                <span className="text-sm text-neutral-300">Content Script</span>
-                <span className="text-xs text-brand-400">Meta Ads Library</span>
-              </div>
-              <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
-                <span className="text-sm text-neutral-300">Painel</span>
-                <span className="text-xs text-neutral-500">Side Panel</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Transcrição
-    if (isActive(PATHS.TRANSCRICAO)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Transcrição de Mídias</h1>
-          <EmptyState title="Configure a transcrição" description="Selecione um vídeo e inicie a transcrição quando o serviço estiver configurado." icon={<Music className="h-8 w-8" />} />
-        </div>
-      );
-    }
-
-    // Análise de Tráfego
-    if (isActive(PATHS.ANALISE_TRAFEGO)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Análise de Tráfego</h1>
-          <EmptyState title="Analise domínios e páginas" description="Insira uma URL para ver estrutura, tecnologias e informações disponíveis." icon={<ChartPie className="h-8 w-8" />} />
-        </div>
-      );
-    }
-
-    // Clonar Páginas
-    if (isActive(PATHS.CLONAR_PAGINAS)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Clonar Páginas</h1>
-          <EmptyState title="Análise estrutural de páginas" description="Insira uma URL para analisar estrutura, títulos, links e tecnologias." icon={<Copy className="h-8 w-8" />} />
-        </div>
-      );
-    }
-
-    // Ajuda
-    if (isActive(PATHS.AJUDA)) {
-      return (
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-6">Ajuda / Tutoriais</h1>
-          <EmptyState title="Central de ajuda" description="Documentação, tutoriais e suporte para usar o CaçaOferta." icon={<HelpCircle className="h-8 w-8" />} />
-        </div>
-      );
-    }
-
-    // Default
+    if (isActive(PATHS.MINERACAO)) return <MineracaoPage addSearch={addSearch} />;
+    if (isActive(PATHS.RASTREAMENTO)) return <RastreamentoPage events={events} loading={trackingLoading} />;
+    if (isActive(PATHS.MINERACAO_AUTOMATICA)) return <MineracaoAutomaticaPage jobs={jobs} loading={jobsLoading} createJob={createJob} runJob={runJob} />;
+    if (isActive(PATHS.OFERTAS_MINERADAS)) return <OfertasMineradasPage ofertas={ofertas} loading={ofertasLoading} error={ofertasError} />;
+    if (isActive(PATHS.MINHAS_OFERTAS)) return <MinhasOfertasPage ofertas={ofertas} loading={ofertasLoading} error={ofertasError} totalOfertas={totalOfertas} page={page} setPage={setPage} handleToggleFavorite={handleToggleFavorite} />;
+    if (isActive(PATHS.FAVORITOS)) return <FavoritosPage ofertas={ofertas} loading={ofertasLoading} />;
+    if (isActive(PATHS.SWIPE)) return <SwipePage ofertas={ofertas} loading={ofertasLoading} />;
+    if (isActive(PATHS.TRANSCRICAO)) return <TranscricaoPage />;
+    if (isActive(PATHS.ANALISE_TRAFEGO)) return <AnaliseTrafegoPage ofertas={ofertas} />;
+    if (isActive(PATHS.CLONAR_PAGINAS)) return <ClonarPaginasPage />;
+    if (isActive(PATHS.EXTENSAO)) return <ExtensaoPage health={health} />;
+    if (isActive(PATHS.AJUDA)) return <AjudaPage />;
     return <EmptyState title="Página não encontrada" description="Selecione uma opção no menu lateral." />;
   };
 
@@ -663,17 +1171,12 @@ export default function App() {
         }`}
         aria-label="Sidebar"
       >
-        {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-neutral-800 shrink-0">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
             <span className="text-white font-bold text-sm">C</span>
           </div>
-          {!sidebarCollapsed && (
-            <span className="font-extrabold text-white tracking-wide text-sm">CAÇAOFERTA</span>
-          )}
+          {!sidebarCollapsed && <span className="font-extrabold text-white tracking-wide text-sm">CAÇAOFERTA</span>}
         </div>
-
-        {/* Toggle */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="mx-3 mt-2 flex items-center justify-center w-10 h-8 rounded-lg bg-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-700 transition-colors"
@@ -681,14 +1184,9 @@ export default function App() {
         >
           {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
-
         {sidebarContent}
-
-        {/* Footer */}
         <div className="px-3 py-4 border-t border-neutral-800 shrink-0">
-          {!sidebarCollapsed && (
-            <p className="text-[10px] text-neutral-600 text-center">© 2026 CaçaOferta</p>
-          )}
+          {!sidebarCollapsed && <p className="text-[10px] text-neutral-600 text-center">© 2026 CaçaOferta</p>}
         </div>
       </aside>
 
@@ -710,55 +1208,35 @@ export default function App() {
 
       {/* Área principal */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar */}
         <header className="sticky top-0 z-40 bg-neutral-950/95 backdrop-blur border-b border-neutral-800">
           <div className="flex items-center justify-between px-4 lg:px-6 h-14">
             <div className="flex items-center gap-3">
-              {/* Mobile menu */}
-              <button
-                onClick={() => setMobileDrawerOpen(true)}
-                className="lg:hidden p-2 rounded-lg hover:bg-neutral-800 text-neutral-300"
-                aria-label="Abrir menu"
-              >
+              <button onClick={() => setMobileDrawerOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-neutral-800 text-neutral-300" aria-label="Abrir menu">
                 <Menu className="h-5 w-5" />
               </button>
-
-              {/* Search global */}
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
                 <input
                   ref={searchInputRef}
                   type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => setShowSearch(true)}
                   placeholder="Buscar... (Ctrl+K)"
                   className="bg-neutral-900 border border-neutral-800 rounded-lg pl-8 pr-3 py-1.5 text-sm text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none w-48 lg:w-72"
                 />
               </div>
             </div>
-
             <div className="flex items-center gap-2">
-              {/* Status API */}
               <div className="hidden sm:flex items-center gap-1.5">
                 {health.status === 'checking' && <Loader2 className="h-4 w-4 text-neutral-500 animate-spin" />}
                 {health.status === 'online' && <Wifi className="h-4 w-4 text-status-active" />}
                 {health.status === 'offline' && <WifiOff className="h-4 w-4 text-status-inactive" />}
-                <span className={`text-[11px] ${
-                  health.status === 'online' ? 'text-status-active' :
-                  health.status === 'offline' ? 'text-status-inactive' : 'text-neutral-500'
-                }`}>
+                <span className={`text-[11px] ${health.status === 'online' ? 'text-status-active' : health.status === 'offline' ? 'text-status-inactive' : 'text-neutral-500'}`}>
                   {health.status === 'checking' ? '...' : health.status === 'online' ? 'API' : 'Offline'}
                 </span>
               </div>
-
-              {/* Notificações */}
               <button className="relative p-2 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors" aria-label="Notificações">
                 <Bell className="h-4 w-4" />
                 <span className="absolute top-1 right-1 h-2 w-2 bg-brand-500 rounded-full" />
               </button>
-
-              {/* Perfil */}
               <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-neutral-800">
                 <div className="w-7 h-7 rounded-full bg-brand-600/20 flex items-center justify-center">
                   <User className="h-4 w-4 text-brand-400" />
@@ -769,12 +1247,10 @@ export default function App() {
           </div>
         </header>
 
-        {/* Conteúdo */}
         <main className="flex-1 px-4 lg:px-6 py-6 lg:py-8 overflow-y-auto">
           {pageContent()}
         </main>
 
-        {/* Footer */}
         <footer className="border-t border-neutral-800">
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3 text-[11px] text-neutral-600">
             <span className="flex items-center gap-2">
@@ -789,6 +1265,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
