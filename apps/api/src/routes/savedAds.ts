@@ -78,6 +78,11 @@ function toSaveDto(row: SavedAdRow) {
     thumbnailUrl: ad?.thumbnailUrl ?? null,
     savedAt: row.savedAt,
     updatedAt: row.updatedAt,
+    classification: row.classification ?? null,
+    score: row.score ?? null,
+    isFavorite: row.isFavorite ?? false,
+    tags: [] as string[],
+    notes: [] as string[],
   };
 }
 

@@ -49,6 +49,7 @@ export interface SavedAdRow {
   adLibraryId: string;
   pageId: string | null;
   statusSnapshot: string | null;
+  isFavorite: boolean;
   classification?: number | null;
   score?: number | null;
   savedAt: string;
@@ -128,6 +129,9 @@ interface PrismaSavedRowWithAd {
   adLibraryId: string;
   pageId: string | null;
   statusSnapshot: string | null;
+  isFavorite: boolean;
+  classification: number | null;
+  score: number | null;
   savedAt: Date;
   updatedAt: Date;
   ad: PrismaAdScalar | null;
@@ -167,6 +171,9 @@ function mapSaved(row: PrismaSavedRowWithAd): SavedAdRow {
     adLibraryId: row.adLibraryId,
     pageId: row.pageId,
     statusSnapshot: row.statusSnapshot,
+    isFavorite: row.isFavorite,
+    classification: row.classification,
+    score: row.score,
     savedAt: row.savedAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     ad: row.ad ? mapAd(row.ad) : null,

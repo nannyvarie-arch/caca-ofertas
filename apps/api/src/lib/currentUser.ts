@@ -4,9 +4,14 @@
 // sessão do Supabase Auth a partir do header Authorization Bearer.
 //
 // Contrato de resolução do usuário atual (injetável nos testes).
+//
+// Prioridade de resolução:
+//   1. DEV_USER_ENABLED (dev mode) → DEV_USER_ID
+//   2. Authorization Bearer token → Supabase Auth
+//   3. Sem token → PUBLIC_USER_ID (fallback público, evita 500)
 import type { FastifyRequest } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
-import { DEV_USER_ID, DEV_USER_ENABLED } from '../config/env';
+import { DEV_USER_ID, DEV_USER_ENABLED, PUBLIC_USER_ID } from '../config/env';
 
 export type CurrentUserResolver = (request: FastifyRequest) => Promise<{ userId: string }>;
 
@@ -18,34 +23,33 @@ export async function resolveCurrentUser(
     return { userId: DEV_USER_ID };
   }
 
-  try {
-    const authHeader = request.headers.authorization ?? '';
+  const authHeader = request.headers.authorization ?? '';
 
-    if (!authHeader.toLowerCase().startsWith('bearer ')) {
-      throw new Error('Header Authorization ausente ou incompleto.');
-    }
-
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
     const token = authHeader.slice('bearer '.length).trim();
 
-    if (!token) {
-      throw new Error('Token de autenticação vazio.');
+    if (token) {
+      try {
+        const supa = createClient(
+          process.env.SUPABASE_URL ?? '',
+          process.env.SUPABASE_ANON_KEY ?? '',
+        );
+
+        const { data, error } = await supa.auth.getUser(token);
+
+        if (!error && data.user?.id) {
+          return { userId: data.user.id };
+        }
+      } catch {
+        // Token validation failed — fall through to PUBLIC_USER_ID
+      }
     }
-
-    // Usa o cliente Supabase JS para validar o token e obter o usuário
-    const supa = createClient(
-      process.env.SUPABASE_URL ?? '',
-      process.env.SUPABASE_ANON_KEY ?? '',
-    );
-
-    const { data, error } = await supa.auth.getUser(token);
-
-    if (error || !data.user?.id) {
-      throw new Error('Token inválido ou usuário não encontrado: ' + (error?.message ?? ''));
-    }
-
-    return { userId: data.user.id };
-  } catch (e: any) {
-    const errorMessage = e instanceof Error ? e.message : 'Usuário não autenticado';
-    throw new Error(errorMessage, { cause: e });
   }
+
+  // Fallback: público (sem autenticação)
+  if (PUBLIC_USER_ID) {
+    return { userId: PUBLIC_USER_ID };
+  }
+
+  throw new Error('Usuário não autenticado. Configure PUBLIC_USER_ID ou envie um token Bearer válido.');
 }
