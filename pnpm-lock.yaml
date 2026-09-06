@@ -142,12 +142,18 @@ importers:
       '@fastify/cors':
         specifier: ^11.3.0
         version: 11.3.0
+      '@prisma/client':
+        specifier: 6.19.3
+        version: 6.19.3
       '@supabase/supabase-js':
         specifier: ^2.115.0
         version: 2.115.0
       fastify:
         specifier: ^5.12.3
         version: 5.12.3
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
       zod:
         specifier: ^4.5.4
         version: 4.5.4
@@ -158,9 +164,9 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
-      tsx:
-        specifier: ^4.23.13
-        version: 4.23.13
+      prisma:
+        specifier: 6.19.3
+        version: 6.19.3
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@26.4.1)(jsdom@30.0.1)(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))
