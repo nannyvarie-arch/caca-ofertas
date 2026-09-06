@@ -18,8 +18,9 @@ export const DEV_USER_ENABLED = NODE_ENV !== 'production' && DEV_USER_ID.length 
  * Usuário fallback para requisições sem Authorization header.
  * Quando definido, a API funciona sem autenticação (modo público).
  * Prioridade: DEV_USER_ENABLED > Supabase Auth > PUBLIC_USER_ID.
+ * Fallback hardcoded: 'default-user' para evitar 500 quando a variável não está configurada.
  */
-export const PUBLIC_USER_ID = process.env.PUBLIC_USER_ID ?? '';
+export const PUBLIC_USER_ID = process.env.PUBLIC_USER_ID || 'default-user';
 
 /** URL do projeto Supabase (público - pode ser usado no frontend/extensão). */
 export const SUPABASE_URL = process.env.SUPABASE_URL ?? '';

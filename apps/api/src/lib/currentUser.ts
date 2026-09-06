@@ -47,9 +47,5 @@ export async function resolveCurrentUser(
   }
 
   // Fallback: público (sem autenticação)
-  if (PUBLIC_USER_ID) {
-    return { userId: PUBLIC_USER_ID };
-  }
-
-  throw new Error('Usuário não autenticado. Configure PUBLIC_USER_ID ou envie um token Bearer válido.');
+  return { userId: PUBLIC_USER_ID };
 }
