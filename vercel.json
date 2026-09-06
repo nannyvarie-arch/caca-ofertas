@@ -1,0 +1,16 @@
+{
+  "framework": "vite",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm --filter @caca-oferta/web build",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://caca-ofertas.onrender.com/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://caca-ofertas.onrender.com/health"
+    }
+  ]
+}

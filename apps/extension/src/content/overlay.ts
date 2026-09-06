@@ -20,6 +20,7 @@ import { isoToBr, mediaVisual, platformLabel, statusMeta } from './format';
 import { getLogger } from './logging';
 import { formatRunningDays, runningDaysOf, runningDaysTier } from './runningDays';
 import { attachToast, type Toast } from './toast';
+import { lookupKeyword } from './keywordLibrary';
 
 export interface OverlayOptions {
   /** Acionado pelo botão "🔎 Pesquisar domínio" do card (abre a pesquisa). */
@@ -45,7 +46,7 @@ const STYLE = `
     position: absolute;
     top: 44px;
     right: 8px;
-    width: 236px;
+    width: 248px;
     background: #15151a;
     color: #f4f4f5;
     border: 1px solid #ea580c;
@@ -59,12 +60,16 @@ const STYLE = `
     pointer-events: none;
   }
   .co-head {
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    color: #ea580c;
-    font-size: 10px;
-    margin-bottom: 4px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 700; letter-spacing: 0.06em;
+    color: #ea580c; font-size: 10px; margin-bottom: 4px;
   }
+  .co-days-badge {
+    background: #ea580c; color: #fff; padding: 1px 6px;
+    border-radius: 999px; font-size: 10px; font-weight: 700;
+    white-space: nowrap;
+  }
+  .co-days-badge-hot { background: #dc2626; }
   .co-row { margin: 1px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d4d4d8; }
   .co-label { color: #71717a; }
   .co-domain { display: flex; align-items: center; gap: 4px; margin: 3px 0 1px; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -88,6 +93,11 @@ const STYLE = `
   .co-tier-t4 { color: #fb923c; }
   .co-tier-t5 { color: #fb923c; border-color: #7c2d12; }
   .co-tier-t6 { color: #fdba74; border-color: #ea580c; }
+  .co-niche-tag {
+    display: inline-block; background: #1e1e23; border: 1px solid #3f3f46;
+    border-radius: 4px; padding: 0 5px; font-size: 9px; color: #a78bfa;
+    margin: 2px 0;
+  }
   .co-actions { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
   .co-btn {
     width: 100%;
@@ -101,6 +111,7 @@ const STYLE = `
     text-align: left;
     cursor: pointer;
     pointer-events: auto;
+    display: flex; align-items: center; gap: 4px;
   }
   .co-btn:hover:not(:disabled) { background: #3f3f46; }
   .co-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -116,6 +127,7 @@ const STYLE = `
     font-weight: 600;
     cursor: pointer;
     pointer-events: auto;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
   }
   .co-save:hover { background: #c2410c; }
   .co-save.co-save-done {
@@ -180,6 +192,7 @@ interface OverlayActions {
   onOpenDomain: () => void;
   onOpenAd: () => void;
   onSave: () => void;
+  onDownloadCreative: () => void;
 }
 
 /** Estados visuais reais do botão salvar (nunca finge sucesso). */
@@ -204,7 +217,26 @@ function buildBody(ad: ParsedAd, actions: OverlayActions, saveState: SaveUiState
 
   const head = document.createElement('div');
   head.className = 'co-head';
-  head.textContent = 'CAÇAOFERTA';
+  const brandSpan = document.createElement('span');
+  brandSpan.textContent = 'CAÇAOFERTA';
+  head.append(brandSpan);
+
+  // Badge de dias rodando
+  const days = runningDaysOf(ad);
+  if (days !== null) {
+    const tier = runningDaysTier(days);
+    const badge = document.createElement('span');
+    badge.className = 'co-days-badge' + (tier && days >= 30 ? ' co-days-badge-hot' : '');
+    badge.textContent = `🗓 ${formatRunningDays(days)}`;
+    badge.title = 'Tempo de veiculação — dados reais da Meta.';
+    head.append(badge);
+  } else {
+    const badge = document.createElement('span');
+    badge.className = 'co-days-badge';
+    badge.textContent = '🗓 —';
+    badge.title = 'Data de início não identificada.';
+    head.append(badge);
+  }
   body.append(head);
 
   const statusRow = document.createElement('div');
@@ -221,15 +253,16 @@ function buildBody(ad: ParsedAd, actions: OverlayActions, saveState: SaveUiState
 
   if (ad.deliveryStartDate) {
     body.append(detailRow('📅 Início', isoToBr(ad.deliveryStartDate)));
-    const days = runningDaysOf(ad);
-    const tier = runningDaysTier(days);
-    const nodes: Array<Node | string> = [`⏱ ${formatRunningDays(days)}`];
-    if (tier && days !== null) {
-      const chip = spanEl(`co-tier co-tier-${tier.key}`, tier.label);
-      chip.title = 'Tempo de veiculação do anúncio — não é classificação de oferta.';
-      nodes.push(chip);
+    if (days !== null) {
+      const nodes: Array<Node | string> = [`⏱ ${formatRunningDays(days)}`];
+      const tier = runningDaysTier(days);
+      if (tier) {
+        const chip = spanEl(`co-tier co-tier-${tier.key}`, tier.label);
+        chip.title = 'Tempo de veiculação — não é classificação de oferta.';
+        nodes.push(chip);
+      }
+      body.append(detailRow('Rodando', nodes));
     }
-    body.append(detailRow('Rodando', nodes));
   } else {
     body.append(detailRow('📅 Início', 'Data não identificada'));
   }
@@ -250,7 +283,24 @@ function buildBody(ad: ParsedAd, actions: OverlayActions, saveState: SaveUiState
     body.append(chips);
   }
 
-  // Seção 19: o domínio é exibido sempre — null nunca é escondido em silêncio.
+  // Nicho detectado automaticamente
+  if (ad.creativeText) {
+    const lowerText = ad.creativeText.toLowerCase();
+    const words = lowerText.split(/\s+/);
+    for (const word of words) {
+      const lookup = lookupKeyword(word);
+      if (lookup) {
+        const nicheTag = document.createElement('div');
+        nicheTag.className = 'co-niche-tag';
+        nicheTag.textContent = `${lookup.niche} › ${lookup.subniche}`;
+        nicheTag.title = `Detectado automaticamente pela palavra-chave: "${word}"`;
+        body.append(nicheTag);
+        break;
+      }
+    }
+  }
+
+  // Domínio
   const domainDiv = document.createElement('div');
   domainDiv.className = 'co-domain';
   domainDiv.textContent = ad.destinationDomain
@@ -263,7 +313,8 @@ function buildBody(ad: ParsedAd, actions: OverlayActions, saveState: SaveUiState
   const hasUrl = Boolean(ad.destinationUrl);
   const hasSnapshot = Boolean(ad.adSnapshotUrl);
   const hasId = Boolean(ad.adLibraryId);
-  if (hasDomain || hasUrl || hasSnapshot || hasId) {
+  const hasCreative = Boolean(ad.creativeUrl);
+  if (hasDomain || hasUrl || hasSnapshot || hasId || hasCreative) {
     const actionsBox = document.createElement('div');
     actionsBox.className = 'co-actions';
     if (hasId) {
@@ -278,7 +329,10 @@ function buildBody(ad: ParsedAd, actions: OverlayActions, saveState: SaveUiState
       actionsBox.append(button('📋 Copiar URL', 'co-btn co-btn-copy-url', actions.onCopyUrl));
     }
     if (hasSnapshot) {
-      actionsBox.append(button('🌐 Abrir anúncio', 'co-btn co-btn-open-ad', actions.onOpenAd));
+      actionsBox.append(button('🔎 Ver anúncio', 'co-btn co-btn-open-ad', actions.onOpenAd));
+    }
+    if (hasCreative) {
+      actionsBox.append(button('⬇ Baixar criativo', 'co-btn co-btn-download', actions.onDownloadCreative));
     }
     body.append(actionsBox);
   }
@@ -349,6 +403,39 @@ export function attachOverlay(card: Element, ad: ParsedAd, options: OverlayOptio
       });
   };
 
+  const downloadCreative = async (): Promise<void> => {
+    if (!ad.creativeUrl) {
+      ensureToast().show('Criativo não disponível para download.');
+      return;
+    }
+    try {
+      const response = await fetch(ad.creativeUrl);
+      if (!response.ok) {
+        ensureToast().show('Criativo não disponível para download.');
+        return;
+      }
+      const blob = await response.blob();
+      const ext = blob.type.includes('video') ? 'mp4' : blob.type.includes('png') ? 'png' : 'jpg';
+      const pageName = (ad.pageName ?? 'unknown').replace(/[^a-zA-Z0-9]/g, '-').slice(0, 30);
+      const id = ad.adLibraryId ?? 'sem-id';
+      const adDays = runningDaysOf(ad);
+      const daysPart = adDays !== null ? `${adDays}-dias` : 'sem-data';
+      const filename = `cacaoferta_${pageName}_${id}_${daysPart}.${ext}`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.append(a);
+      a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
+      ensureToast().show('Criativo baixado!');
+    } catch {
+      ensureToast().show('Não foi possível baixar o criativo.');
+    }
+  };
+
   const actions: OverlayActions = {
     onSearchDomain: () => {
       if (ad.destinationDomain) options.onSearchDomain?.(ad.destinationDomain);
@@ -386,6 +473,7 @@ export function attachOverlay(card: Element, ad: ParsedAd, options: OverlayOptio
       }
     },
     onSave: performSave,
+    onDownloadCreative: downloadCreative,
   };
 
   const render = (): void => {

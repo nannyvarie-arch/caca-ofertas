@@ -77,6 +77,7 @@ export function normalizedToParsed(normalized: NormalizedAd): ParsedAd {
     destinationDomain: normalized.destinationDomain,
     adSnapshotUrl: normalized.adSnapshotUrl,
     cta: normalized.cta,
+    creativeUrl: normalized.creativeUrl,
   };
 }
 

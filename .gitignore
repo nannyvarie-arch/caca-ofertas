@@ -24,3 +24,4 @@ logs/
 Thumbs.db
 .idea/
 .vscode/untracked
+.vercel

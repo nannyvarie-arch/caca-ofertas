@@ -19,6 +19,7 @@ import { RuntimeMessageType, type RuntimeResponse } from '../bridge/messages';
 import type { DomainIndex } from './DomainIndex';
 import { getLogger } from './logging';
 import { AdSearchPanel } from './searchPanel';
+import { SearchCentral } from './searchCentral';
 import { attachToast, type Toast } from './toast';
 
 /** Acesso à lista de ofertas salvas (produção = service worker; testes = fake). */
@@ -51,6 +52,7 @@ export interface CaçaOfertaSidebarOptions {
   getAds: () => ParsedAd[];
   /** Injetável nos testes. Default: service worker (production). */
   savedOffersService?: SavedOffersService;
+  onSearch?: (url: string, context?: { keyword?: string; niche?: string; subniche?: string }) => void;
 }
 
 const SIDEBAR_STYLE = `
@@ -236,6 +238,10 @@ export class CaçaOfertaSidebar {
 
   /** Engine de busca da FASE 03, embutida na sidebar (sem segunda implementação). */
   readonly panel: AdSearchPanel;
+  /** Central de Pesquisa (FASE 07). */
+  readonly searchCentral: SearchCentral | null;
+  /** Contexto da pesquisa ativa (keyword/niche/subniche). */
+  private searchContext: { keyword?: string; niche?: string; subniche?: string } = {};
 
   private collapsed: boolean;
   private width = DEFAULT_WIDTH;
@@ -306,6 +312,16 @@ export class CaçaOfertaSidebar {
 
     this.panel = new AdSearchPanel({ getIndex: this.options.getIndex, embedded: true });
     this.body.append(this.panel.host);
+
+    // Central de Pesquisa (FASE 07): pesquisa por palavra-chave, domínio ou combinado.
+    if (this.options.onSearch) {
+      this.searchCentral = new SearchCentral({
+        onSearch: this.options.onSearch,
+      });
+      this.body.append(this.searchCentral.host);
+    } else {
+      this.searchCentral = null;
+    }
 
     // Seção de ofertas salvas (FASE 06): escondida até o usuário pedir.
     // Carregada só sob ação explícita (sem chamadas automáticas à rede).
@@ -378,6 +394,7 @@ export class CaçaOfertaSidebar {
 
   destroy(): void {
     this.panel.destroy();
+    this.searchCentral?.destroy();
     this.toast.destroy();
     this.host.remove();
     this.logger.debug('Sidebar destruída.');
@@ -401,6 +418,7 @@ export class CaçaOfertaSidebar {
   reset(): void {
     this.panel.reset();
     this.syncStats();
+    this.searchContext = {};
     this.savedOffersVisible = false;
     this.savedOffersBox.hidden = true;
   }
@@ -408,6 +426,12 @@ export class CaçaOfertaSidebar {
   /** Reexecuta a busca atual quando novos anúncios chegam (sem rebuild total). */
   refreshSearch(): void {
     if (this.panel.isVisible) this.panel.refresh();
+  }
+
+  /** Define o contexto da pesquisa ativa (keyword/niche/subniche). */
+  setSearchContext(context: { keyword?: string; niche?: string; subniche?: string }): void {
+    this.searchContext = context;
+    this.logger.debug('Contexto de pesquisa atualizado', context);
   }
 
   /** Alterna a aba "⭐ Minhas ofertas" (carrega a lista apenas sob ação do usuário). */

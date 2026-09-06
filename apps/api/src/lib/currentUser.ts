@@ -6,6 +6,7 @@
 // Contrato de resolução do usuário atual (injetável nos testes).
 import type { FastifyRequest } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
+import { DEV_USER_ID, DEV_USER_ENABLED } from '../config/env';
 
 export type CurrentUserResolver = (request: FastifyRequest) => Promise<{ userId: string }>;
 
@@ -13,6 +14,10 @@ export type CurrentUserResolver = (request: FastifyRequest) => Promise<{ userId:
 export async function resolveCurrentUser(
   request: FastifyRequest,
 ): Promise<{ userId: string }> {
+  if (DEV_USER_ENABLED) {
+    return { userId: DEV_USER_ID };
+  }
+
   try {
     const authHeader = request.headers.authorization ?? '';
 

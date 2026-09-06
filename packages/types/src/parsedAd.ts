@@ -21,4 +21,6 @@ export interface ParsedAd {
   destinationDomain: string | null;
   adSnapshotUrl: string | null;
   cta: string | null;
+  /** URL do criativo (imagem/vídeo) quando disponível. */
+  creativeUrl: string | null;
 }

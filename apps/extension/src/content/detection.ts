@@ -1,14 +1,13 @@
-// CAÇAOFERTA — Detecção de cards de anúncios na Meta Ads Library.
+// CAÇAOFERTA — Detecção robusta de cards de anúncios na Meta Ads Library.
 //
-// Estratégia: NÃO confiar em uma classe CSS específica. O detector combina
-// marcadores públicos estáveis da página (textos visíveis, padrões de URL de
-// links, relação estrutural pai/card) e pontua cada candidato. Candidatos
-// aninhados são colapsados para o container mais externo que ainda contém
-// exatamente um perfil de página.
+// Estratégia multicamada:
+//   1. Padrões primários: links de perfil, Library ID, snapshot links.
+//   2. Fallback textual: qualquer elemento com "Library ID"/"Veiculação iniciada".
+//   3. Fallback visual: containers com imagem significativa + texto.
+//   4. Fallback agressivo: scan completo do DOM por qualquer container que
+//      contenha mix de mídia + texto curto + links.
 //
-// Limitações conhecidas (FASE 02): sem login/autorização, a estrutura exata do
-// DOM da Meta não pode ser inspecionada neste ambiente; portanto o parser é
-// defensivo — informações não confirmadas retornam null e são registradas.
+// Logging ALWAYS-ON via console.info para diagnóstico em tempo real.
 
 import {
   AD_SNAPSHOT_HREF_PATTERN,
@@ -20,12 +19,18 @@ import {
   STATUS_INACTIVE_PATTERN,
   STOP_DATE_PREFIX_PATTERN,
 } from './patterns';
-import { findTextMatch, normalizeText } from './text';
+import { collectTextLeaves, findTextMatch, normalizeText } from './text';
 
-export const MAX_CLIMB_DEPTH = 12;
-export const MIN_AD_CARD_SCORE = 3;
+const LOG_PREFIX = '[CaçaOferta Detection]';
+
+export const MAX_CLIMB_DEPTH = 15;
+export const MIN_AD_CARD_SCORE = 2;
 
 export type StatusToken = 'active' | 'inactive' | 'unknown';
+
+function log(msg: string, ...args: unknown[]): void {
+  console.info(`${LOG_PREFIX} ${msg}`, ...args);
+}
 
 function elementHasMedia(el: Element): boolean {
   if (el.querySelector('video')) return true;
@@ -43,7 +48,6 @@ function countPageProfileLinks(el: Element): number {
   return count;
 }
 
-/** Nota de confiança: quanto maior, mais forte a evidência de ser um card. */
 export function adCardScore(
   el: Element,
   info?: { pageLinks?: number; libraryId?: boolean; snapshot?: boolean },
@@ -79,10 +83,9 @@ export function hasStatusText(el: Element): boolean {
   return false;
 }
 
-/** True quando o elemento é um card de anúncio (relação estrutural + marcadores). */
 export function isAdCard(el: Element): boolean {
   const pageLinks = countPageProfileLinks(el);
-  if (pageLinks > 1) return false; // container com várias páginas → não é um card.
+  if (pageLinks > 1) return false;
 
   const libraryId = findTextMatch(el, LIBRARY_ID_LABEL_PATTERN) !== null;
   const snapshot = Array.from(el.querySelectorAll('a[href]')).some((a) =>
@@ -92,7 +95,6 @@ export function isAdCard(el: Element): boolean {
   const media = elementHasMedia(el);
 
   if (pageLinks === 0) {
-    // Fallback: card exibido sem link de perfil ainda deve ter ID + mídia/marcador.
     return libraryId && (sponsored || snapshot) && media;
   }
 
@@ -107,40 +109,120 @@ function byDocumentOrder(a: Element, b: Element): number {
   return 0;
 }
 
-/**
- * Localiza os cards de anúncio presentes no DOM.
- * Varre âncoras de perfil de página e rótulos "Library ID", então sobe na
- * árvore até o container externo que ainda seja um card (links de página == 1).
- */
-export function findAdCards(root: Element = document.body): Element[] {
+function climbAndFindCard(start: Element): Element | null {
+  let el: Element | null = start;
+  for (let depth = 0; el && depth < MAX_CLIMB_DEPTH; depth++, el = el.parentElement) {
+    if (!el.parentElement) break;
+    if (countPageProfileLinks(el) > 1) break;
+    if (isAdCard(el)) return el;
+  }
+  return null;
+}
+
+/** Passo 1: busca primária por links de perfil + Library ID. */
+function findAdCardsPrimary(root: Element): Element[] {
   const candidates = new Set<Element>();
 
-  // Passo 1: âncoras de perfil de página.
   const pageAnchors = Array.from(root.querySelectorAll('a[href]')).filter((a) =>
     PAGE_PROFILE_HREF_PATTERN.test(a.getAttribute('href') ?? ''),
   );
   for (const anchor of pageAnchors) {
-    let el: Element | null = anchor;
-    for (let depth = 0; el && depth < MAX_CLIMB_DEPTH; depth++, el = el.parentElement) {
-      if (!el.parentElement) break;
-      if (countPageProfileLinks(el) > 1) break; // subiu para um container multi-page.
-      if (isAdCard(el)) {
-        candidates.add(el); // nó mais específico que ainda é um card completo.
-        break;
-      }
-    }
+    const card = climbAndFindCard(anchor);
+    if (card) candidates.add(card);
   }
 
-  // Passo 2: rótulos "Library ID" em cards que podem não ter link de perfil.
   const labelLeaves = collectLabelElements(root);
   for (const labelEl of labelLeaves) {
-    let el: Element | null = labelEl;
+    const card = climbAndFindCard(labelEl);
+    if (card) candidates.add(card);
+  }
+
+  return Array.from(candidates).sort(byDocumentOrder);
+}
+
+/** Passo 2: fallback textual — busca por qualquer elemento com "Library ID". */
+function findAdCardsTextualFallback(root: Element): Element[] {
+  const candidates = new Set<Element>();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null = walker.nextNode();
+
+  const textPatterns = [
+    /library\s*id/i,
+    /id\s*da\s*biblioteca/i,
+    /started\s*running/i,
+    /veicula[ção]+\s+iniciada/i,
+    /come[çc]ou\s+a\s+(?:veicular|rodar)/i,
+    /see\s*ad\s*details/i,
+    /ver\s*detalhes\s*do\s*an[úu]ncio/i,
+  ];
+
+  while (node) {
+    const text = normalizeText(node.textContent ?? '');
+    if (text && node.parentElement) {
+      const matches = textPatterns.some((p) => p.test(text));
+      if (matches) {
+        let el: Element | null = node.parentElement;
+        for (let depth = 0; el && depth < MAX_CLIMB_DEPTH; depth++, el = el.parentElement) {
+          if (!el.parentElement) break;
+          if (countPageProfileLinks(el) > 1) break;
+          if (elementHasMedia(el) || el.querySelectorAll('a[href]').length >= 2) {
+            candidates.add(el);
+            break;
+          }
+        }
+      }
+    }
+    node = walker.nextNode();
+  }
+
+  return Array.from(candidates).sort(byDocumentOrder);
+}
+
+/** Passo 3: fallback visual — containers com imagem significativa. */
+function findAdCardsImageFallback(root: Element): Element[] {
+  const candidates = new Set<Element>();
+  const images = Array.from(root.querySelectorAll('img'));
+
+  for (const img of images) {
+    const w = img.naturalWidth || img.width || 0;
+    const h = img.naturalHeight || img.height || 0;
+    if (w < 80 || h < 80) continue;
+
+    const link = img.closest('a[href]');
+    if (link) {
+      const href = link.getAttribute('href') ?? '';
+      if (PAGE_PROFILE_HREF_PATTERN.test(href)) continue;
+    }
+
+    let el: Element | null = img;
     for (let depth = 0; el && depth < MAX_CLIMB_DEPTH; depth++, el = el.parentElement) {
       if (!el.parentElement) break;
       if (countPageProfileLinks(el) > 1) break;
       if (isAdCard(el)) {
         candidates.add(el);
         break;
+      }
+    }
+  }
+
+  return Array.from(candidates).sort(byDocumentOrder);
+}
+
+/** Passo 4: fallback agressivo — scan completo por containers com mídia + links. */
+function findAdCardsAggressiveFallback(root: Element): Element[] {
+  const candidates = new Set<Element>();
+
+  const allContainers = root.querySelectorAll('div, section, article, li');
+  for (const el of allContainers) {
+    const hasImg = el.querySelector('img[width], img[height], img') !== null;
+    const linkCount = el.querySelectorAll('a[href]').length;
+    const textLeaves = collectTextLeaves(el);
+    const hasShortText = textLeaves.some((t) => t.length >= 3 && t.length <= 200);
+    const isSmall = el.querySelectorAll('*').length < 200;
+
+    if (hasImg && linkCount >= 2 && hasShortText && isSmall) {
+      if (countPageProfileLinks(el) <= 1) {
+        candidates.add(el);
       }
     }
   }
@@ -161,4 +243,101 @@ function collectLabelElements(root: Element): Element[] {
     node = walker.nextNode();
   }
   return out;
+}
+
+/**
+ * Remove candidatos aninhados: quando um card é descendente de outro card na
+ * mesma lista, mantém apenas o ancestral (container externo).
+ */
+function deduplicateNestedCards(cards: Element[]): Element[] {
+  return cards.filter((el) => !cards.some((other) => other !== el && other.contains(el)));
+}
+
+/**
+ * Localiza os cards de anúncio usando estratégia multicamada.
+ * Cada passo é mais agressivo que o anterior.
+ */
+export function findAdCards(root: Element = document.body): Element[] {
+  const t0 = performance.now();
+
+  // Passo 1: padrões primários (mais confiável).
+  const primary = deduplicateNestedCards(findAdCardsPrimary(root));
+  log(`Passo 1 (primário): ${primary.length} cards encontrados`);
+
+  if (primary.length > 0) {
+    log(`Detecção concluída em ${(performance.now() - t0).toFixed(1)}ms — ${primary.length} cards`);
+    return primary;
+  }
+
+  // Passo 2: fallback textual.
+  const textual = deduplicateNestedCards(findAdCardsTextualFallback(root));
+  log(`Passo 2 (textual): ${textual.length} cards encontrados`);
+
+  if (textual.length > 0) {
+    log(`Detecção concluída em ${(performance.now() - t0).toFixed(1)}ms — ${textual.length} cards`);
+    return textual;
+  }
+
+  // Passo 3: fallback visual (imagens).
+  const visual = deduplicateNestedCards(findAdCardsImageFallback(root));
+  log(`Passo 3 (visual): ${visual.length} cards encontrados`);
+
+  if (visual.length > 0) {
+    log(`Detecção concluída em ${(performance.now() - t0).toFixed(1)}ms — ${visual.length} cards`);
+    return visual;
+  }
+
+  // Passo 4: fallback agressivo.
+  const aggressive = deduplicateNestedCards(findAdCardsAggressiveFallback(root));
+  log(`Passo 4 (agressivo): ${aggressive.length} cards encontrados`);
+
+  log(`Detecção concluída em ${(performance.now() - t0).toFixed(1)}ms — total: ${aggressive.length} cards`);
+
+  // Diagnóstico: salva info do DOM quando debug está ativo.
+  dumpPageDiagnostics(root);
+
+  return aggressive;
+}
+
+/**
+ * Diagnóstico: salva informações sobre a estrutura do DOM em chrome.storage.local.
+ */
+export function dumpPageDiagnostics(root: Element): void {
+  try {
+    if (typeof localStorage === 'undefined' || localStorage.getItem('co.debug') !== '1') return;
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+
+    const allHrefs = Array.from(root.querySelectorAll('a[href]'))
+      .map((a) => a.getAttribute('href') ?? '')
+      .filter((h) => h.includes('facebook.com'))
+      .slice(0, 50);
+
+    const textSamples: string[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node: Node | null = walker.nextNode();
+    let count = 0;
+    while (node && count < 100) {
+      const text = normalizeText(node.textContent ?? '');
+      if (text && text.length > 3 && text.length < 200) {
+        textSamples.push(text);
+        count++;
+      }
+      node = walker.nextNode();
+    }
+
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      totalAnchors: root.querySelectorAll('a[href]').length,
+      totalImages: root.querySelectorAll('img').length,
+      totalDivs: root.querySelectorAll('div').length,
+      sampleHrefs: allHrefs,
+      sampleTexts: textSamples.slice(0, 30),
+    };
+
+    chrome.storage.local.set({ 'co.diagnostics': diagnostics });
+    log('Diagnóstico salvo em chrome.storage.local[co.diagnostics]');
+  } catch {
+    // Diagnóstico é best-effort.
+  }
 }

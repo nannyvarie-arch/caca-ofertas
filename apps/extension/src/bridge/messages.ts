@@ -13,6 +13,21 @@ export const RuntimeMessageType = {
   ListSavedAds: 'saved-ads:list',
   GetSavedAd: 'saved-ads:get',
   DeleteSavedAd: 'saved-ads:delete',
+  // FASE 11 — Tags
+  ListTags: 'saved-ads:tags:list',
+  CreateTag: 'saved-ads:tags:create',
+  DeleteTag: 'saved-ads:tags:delete',
+  // FASE 11 — Notas
+  ListNotes: 'saved-ads:notes:list',
+  CreateNote: 'saved-ads:notes:create',
+  // FASE 11 — Classificação e Score
+  GetClassification: 'saved-ads:classification:get',
+  SetClassification: 'saved-ads:classification:set',
+  GetScore: 'saved-ads:score:get',
+  // FASE 11 — Favoritos
+  ToggleFavorite: 'saved-ads:favorite:toggle',
+  // FASE 11 — Comparação
+  CompareAds: 'saved-ads:compare',
 } as const;
 
 export type RuntimeMessageTypeValue = (typeof RuntimeMessageType)[keyof typeof RuntimeMessageType];
@@ -25,7 +40,22 @@ export type RuntimeRequest =
   | { type: typeof RuntimeMessageType.SaveSavedAd; payload: NormalizedAd }
   | { type: typeof RuntimeMessageType.ListSavedAds; page?: number; pageSize?: number }
   | { type: typeof RuntimeMessageType.GetSavedAd; id: string }
-  | { type: typeof RuntimeMessageType.DeleteSavedAd; id: string };
+  | { type: typeof RuntimeMessageType.DeleteSavedAd; id: string }
+  // FASE 11 — Tags
+  | { type: typeof RuntimeMessageType.ListTags; id: string }
+  | { type: typeof RuntimeMessageType.CreateTag; id: string; name: string; color?: string }
+  | { type: typeof RuntimeMessageType.DeleteTag; id: string; tagId: string }
+  // FASE 11 — Notas
+  | { type: typeof RuntimeMessageType.ListNotes; id: string }
+  | { type: typeof RuntimeMessageType.CreateNote; id: string; body: string }
+  // FASE 11 — Classificação e Score
+  | { type: typeof RuntimeMessageType.GetClassification; id: string }
+  | { type: typeof RuntimeMessageType.SetClassification; id: string; classification: number }
+  | { type: typeof RuntimeMessageType.GetScore; id: string }
+  // FASE 11 — Favoritos
+  | { type: typeof RuntimeMessageType.ToggleFavorite; id: string }
+  // FASE 11 — Comparação
+  | { type: typeof RuntimeMessageType.CompareAds; ids: string[] };
 
 export type RuntimeSuccess<T> = { ok: true; data: T };
 export type RuntimeFailure = { ok: false; code: string; message: string };

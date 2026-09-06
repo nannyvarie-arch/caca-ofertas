@@ -24,7 +24,6 @@ import { ApiError, ERROR_CODES, notFound } from '../lib/apiError';
 import type { SavedAdRow, SavedAdsStore } from '../services/savedAdsStore';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { TagDto, NoteDto, ClassificationDto } from '@caca-oferta/shared';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { NewTagInput, NewNoteInput, NewClassificationInput } from '@caca-oferta/shared';
 
 export interface SavedAdsRouteDeps {

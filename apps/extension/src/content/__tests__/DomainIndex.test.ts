@@ -18,6 +18,7 @@ const baseAd: ParsedAd = {
   destinationDomain: null,
   adSnapshotUrl: null,
   cta: null,
+  creativeUrl: null,
 };
 
 function makeAd(overrides: Partial<ParsedAd>): ParsedAd {

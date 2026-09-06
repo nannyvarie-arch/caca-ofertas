@@ -6,7 +6,7 @@ export type HealthState =
   | { status: 'online'; service: string }
   | { status: 'offline' };
 
-const DEFAULT_HEALTH_URL = 'http://localhost:3333/health';
+const DEFAULT_HEALTH_URL = '/health';
 
 export function useHealth(): HealthState {
   const [state, setState] = useState<HealthState>({ status: 'checking' });

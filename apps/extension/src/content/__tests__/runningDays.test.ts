@@ -60,6 +60,7 @@ function makeAd(overrides: Partial<ParsedAd>): ParsedAd {
     destinationDomain: null,
     adSnapshotUrl: null,
     cta: null,
+    creativeUrl: null,
     ...overrides,
   };
 }

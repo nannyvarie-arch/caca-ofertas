@@ -18,6 +18,7 @@ const base: ParsedAd = {
   destinationDomain: 'loja.nutsmart.com.br',
   adSnapshotUrl: null,
   cta: 'Saiba mais',
+  creativeUrl: null,
 };
 
 function noIdAd(pageId: string, startDate: string, text: string): ParsedAd {

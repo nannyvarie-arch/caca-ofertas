@@ -1,29 +1,34 @@
-// CAÇAOFERTA — Content script (FASE 02).
-// Carrega apenas na Biblioteca de Anúncios da Meta, marca a página e inicia o
-// orquestrador de detecção/parser/overlay. Ativa logs de dev com:
-//   localStorage.setItem('co.debug', '1')
-//   (depois recarregue a página da Biblioteca)
+// CAÇAOFERTA — Content script.
+// Carrega na Biblioteca de Anúncios da Meta, marca a página e inicia o
+// orquestrador de detecção/parser/overlay.
 
 import { startAdMining } from './AdCollectionObserver';
 import { isMetaAdsLibraryPage } from './isMetaAdsLibraryPage';
-import { getLogger } from './logging';
 import { getCurrentUrl } from './navigation';
 
+const LOG_PREFIX = '[CaçaOferta]';
+
 function init(): void {
-  const logger = getLogger();
-  logger.info('Extension loaded');
+  console.info(`${LOG_PREFIX} Content script carregado. URL: ${window.location.href}`);
 
   const active = isMetaAdsLibraryPage(getCurrentUrl());
   document.documentElement.setAttribute('data-caca-oferta', active ? 'active' : 'inactive');
 
   if (!active) {
-    logger.info('Página não suportada. CaçaOferta inativo.');
+    console.info(`${LOG_PREFIX} Página não suportada. CaçaOferta inativo.`);
     return;
   }
 
-  logger.info('Meta Ads Library detected');
-  startAdMining();
-  logger.info('Observador de anúncios iniciado.');
+  console.info(`${LOG_PREFIX} Meta Ads Library detectada! Iniciando mineração...`);
+
+  const handle = startAdMining();
+
+  console.info(`${LOG_PREFIX} Observador de anúncios iniciado.`);
+  console.info(`${LOG_PREFIX} Anúncios coletados:`, handle.getCollectedAds().length);
 }
 
-init();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

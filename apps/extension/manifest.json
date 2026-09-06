@@ -20,7 +20,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.facebook.com/ads/library/*"],
+      "matches": [
+        "https://www.facebook.com/ads/library/*",
+        "https://www.facebook.com/ads/library",
+        "https://web.facebook.com/ads/library/*",
+        "https://web.facebook.com/ads/library"
+      ],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
@@ -28,7 +33,8 @@
   ],
   "permissions": ["storage", "sidePanel"],
   "host_permissions": [
-    "https://www.facebook.com/ads/library/*",
+    "https://www.facebook.com/*",
+    "https://web.facebook.com/*",
     "http://127.0.0.1:3333/*",
     "http://localhost:3333/*"
   ]

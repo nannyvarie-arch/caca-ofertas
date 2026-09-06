@@ -30,8 +30,8 @@ const FALLBACK_MESSAGES: Record<string, string> = {
   NOT_FOUND: 'Oferta não encontrada.',
 };
 
-async function request<T>(
-  method: 'GET' | 'POST' | 'DELETE',
+async function httpRequest<T>(
+  method: 'GET' | 'POST' | 'DELETE' | 'PATCH',
   path: string,
   body?: unknown,
 ): Promise<RuntimeFailure | { ok: true; data: T }> {
@@ -77,21 +77,26 @@ export interface SavedAdsApiClient {
   listSavedAds(page?: number, pageSize?: number): Promise<RuntimeFailure | { ok: true; data: SavedAdListDto }>;
   getSavedAd(id: string): Promise<RuntimeFailure | { ok: true; data: SavedAdDto }>;
   deleteSavedAd(id: string): Promise<RuntimeFailure | { ok: true; data: { id: string; deleted: true } }>;
+  /** Requisição genérica para endpoints adicionais. */
+  request<T>(method: 'GET' | 'POST' | 'DELETE' | 'PATCH', path: string, body?: unknown): Promise<RuntimeFailure | { ok: true; data: T }>;
 }
 
 export function createSavedAdsApiClient(): SavedAdsApiClient {
   return {
     saveAd(payload) {
-      return request<SavedAdDto>('POST', API_SAVED_ADS_PATH, payload);
+      return httpRequest<SavedAdDto>('POST', API_SAVED_ADS_PATH, payload);
     },
     listSavedAds(page = 1, pageSize = 50) {
-      return request<SavedAdListDto>('GET', `${API_SAVED_ADS_PATH}?page=${page}&pageSize=${pageSize}`);
+      return httpRequest<SavedAdListDto>('GET', `${API_SAVED_ADS_PATH}?page=${page}&pageSize=${pageSize}`);
     },
     getSavedAd(id) {
-      return request<SavedAdDto>('GET', `${API_SAVED_ADS_PATH}/${encodeURIComponent(id)}`);
+      return httpRequest<SavedAdDto>('GET', `${API_SAVED_ADS_PATH}/${encodeURIComponent(id)}`);
     },
     deleteSavedAd(id) {
-      return request<{ id: string; deleted: true }>('DELETE', `${API_SAVED_ADS_PATH}/${encodeURIComponent(id)}`);
+      return httpRequest<{ id: string; deleted: true }>('DELETE', `${API_SAVED_ADS_PATH}/${encodeURIComponent(id)}`);
+    },
+    async request<T>(method: 'GET' | 'POST' | 'DELETE' | 'PATCH', path: string, body?: unknown): Promise<RuntimeFailure | { ok: true; data: T }> {
+      return httpRequest<T>(method, path, body);
     },
   };
 }
