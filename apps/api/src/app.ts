@@ -9,6 +9,7 @@ import { registerSavedAdsRoutes } from './routes/savedAds';
 import { registerSearchHistoryRoutes } from './routes/searchHistory';
 import { registerMiningRoutes } from './routes/mining';
 import { registerTrackingRoutes } from './routes/tracking';
+import { registerEbookRoutes } from './routes/ebooks';
 import { createPrismaSavedAdsStore, type SavedAdsStore } from './services/savedAdsStore';
 
 export interface BuildServerOptions {
@@ -38,6 +39,7 @@ export function buildServer(options: BuildServerOptions = {}): ReturnType<typeof
   registerSearchHistoryRoutes(server, { resolveUser });
   registerMiningRoutes(server, { resolveUser });
   registerTrackingRoutes(server, { resolveUser });
+  registerEbookRoutes(server, { resolveUser });
 
   return server;
 }

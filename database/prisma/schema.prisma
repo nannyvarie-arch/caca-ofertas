@@ -27,6 +27,7 @@ model User {
   miningSearches    MiningSearch[]
   trackingEvents    TrackingEvent[]
   miningJobs        MiningJob[]
+  ebooks            Ebook[]
 }
 
 // FASE 06: `Ad` é o armazenamento canônico do contrato `NormalizedAd` (tokens
@@ -245,4 +246,44 @@ model MiningJob {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt(sort: Desc)])
+}
+
+// ─── E-BOOKS (FASE CRIAR E-BOOK) ─────────────────────────────────
+
+model Ebook {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  subtitle    String?
+  author      String?
+  description String?
+  themeId     String   @default("editorial")
+  coverConfig Json     @default("{}")
+  content     Json     @default("[]")
+  status      String   @default("draft") // draft | ready
+  pageCount   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User        @relation(fields: [userId], references: [id])
+  assets EbookAsset[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+}
+
+model EbookAsset {
+  id        String   @id @default(uuid())
+  ebookId   String
+  userId    String
+  url       String
+  fileName  String?
+  kind      String   @default("upload") // upload | mockup | generated
+  width     Int?
+  height    Int?
+  sizeBytes Int?
+  createdAt DateTime @default(now())
+
+  ebook Ebook @relation(fields: [ebookId], references: [id], onDelete: Cascade)
+
+  @@index([ebookId])
 }

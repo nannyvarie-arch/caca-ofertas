@@ -2,6 +2,7 @@
 import { APP_TAGLINE } from '@caca-oferta/shared';
 import { useHealth } from './hooks/useHealth';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { EbookEditor, EbookListPage } from './EbookEditor';
 
 /* ─── Tipos ─────────────────────────────────────────────────────── */
 
@@ -103,6 +104,7 @@ const PATHS = {
   CLONAR_PAGINAS: '/clonar-paginas',
   EXTENSAO: '/extensao',
   AJUDA: '/ajuda',
+  EBOOKS: '/ebooks',
   PESQUISA: '/pesquisa',
 } as const;
 
@@ -119,6 +121,7 @@ const NAV_ITEMS = [
   { href: PATHS.ANALISE_TRAFEGO, icon: ChartPie, label: 'Análise de Tráfego', group: 'Análise' },
   { href: PATHS.CLONAR_PAGINAS, icon: Copy, label: 'Clonar Páginas', group: 'Análise' },
   { href: PATHS.EXTENSAO, icon: Puzzle, label: 'Extensão', group: 'Ferramentas' },
+  { href: PATHS.EBOOKS, icon: BookOpen, label: 'Criar E-book', group: 'Produção' },
   { href: PATHS.AJUDA, icon: HelpCircle, label: 'Ajuda', group: 'Ferramentas' },
 ];
 
@@ -398,13 +401,28 @@ function OfferCard({ ad, onToggleFavorite }: { ad: SavedAdItem; onToggleFavorite
             </div>
           )}
         </div>
-        <button
-          onClick={() => onToggleFavorite?.(ad.id)}
-          className={`shrink-0 p-1.5 rounded-lg transition-colors ${ad.isFavorite ? 'text-red-400 hover:text-red-300' : 'text-neutral-600 hover:text-neutral-400'}`}
-          title={ad.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-        >
-          <Heart className={`h-4 w-4 ${ad.isFavorite ? 'fill-current' : ''}`} />
-        </button>
+        <div className="flex flex-col gap-1 shrink-0">
+          {(ad.creativeUrl || ad.thumbnailUrl) && (
+            <a
+              href={ad.creativeUrl ?? ad.thumbnailUrl ?? '#'}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 rounded-lg text-neutral-600 hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+              title="Baixar imagem do criativo"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+          )}
+          <button
+            onClick={() => onToggleFavorite?.(ad.id)}
+            className={`p-1.5 rounded-lg transition-colors ${ad.isFavorite ? 'text-red-400 hover:text-red-300' : 'text-neutral-600 hover:text-neutral-400'}`}
+            title={ad.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+          >
+            <Heart className={`h-4 w-4 ${ad.isFavorite ? 'fill-current' : ''}`} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1085,6 +1103,7 @@ export default function App() {
   const [pathname, setPathname] = useState(window.location.pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [openEbookId, setOpenEbookId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -1159,6 +1178,12 @@ export default function App() {
     if (isActive(PATHS.CLONAR_PAGINAS)) return <ClonarPaginasPage />;
     if (isActive(PATHS.EXTENSAO)) return <ExtensaoPage health={health} />;
     if (isActive(PATHS.AJUDA)) return <AjudaPage />;
+    if (isActive(PATHS.EBOOKS)) {
+      if (openEbookId) {
+        return <EbookEditor ebookId={openEbookId} onBack={() => setOpenEbookId(null)} />;
+      }
+      return <EbookListPage onOpen={(id) => setOpenEbookId(id)} />;
+    }
     return <EmptyState title="Página não encontrada" description="Selecione uma opção no menu lateral." />;
   };
 
