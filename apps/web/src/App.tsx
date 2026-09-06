@@ -1,4 +1,4 @@
-﻿import { Search, ChevronLeft, ChevronRight, LayoutDashboard, Flag, Zap, ShoppingCart, Heart, ArrowRightLeft, Music, ChartPie, Copy, Puzzle, HelpCircle, X, Menu, Bell, User, Wifi, WifiOff, Loader2, Star, TrendingUp, Play, Pause, Trash2, ExternalLink, Download, BookOpen, Settings, ChevronDown, Clock, AlertTriangle, CheckCircle, Filter, BarChart3, Globe, FileText, Send, RefreshCw } from 'lucide-react';
+﻿import { Search, ChevronLeft, ChevronRight, LayoutDashboard, Flag, Zap, ShoppingCart, Heart, ArrowRightLeft, Music, ChartPie, Copy, Puzzle, HelpCircle, X, Menu, Bell, User, Wifi, WifiOff, Loader2, Star, TrendingUp, Play, Pause, Trash2, ExternalLink, Download, BookOpen, Settings, ChevronDown, Clock, AlertTriangle, CheckCircle, Filter, BarChart3, Globe, FileText, Send, RefreshCw, Save, Upload } from 'lucide-react';
 import { APP_TAGLINE } from '@caca-oferta/shared';
 import { useHealth } from './hooks/useHealth';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -133,67 +133,38 @@ function useDashboardSummary() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     async function fetchSummary() {
       try {
-        const adsRes = await fetch('/api/saved-ads', { cache: 'no-store' });
-        if (!adsRes.ok) throw new Error('Não foi possível carregar ofertas');
-        const adsData = await adsRes.json();
-        const ads = adsData.data?.items ?? [];
-
-        const totalOfertas = ads.length;
-        const ativas = ads.filter((a: SavedAdItem) => a.status === 'active').length;
-        const inativas = ads.filter((a: SavedAdItem) => a.status === 'inactive').length;
-        const desconhecidas = ads.filter((a: SavedAdItem) => a.status === 'unknown').length;
-        const totalCreativos = ads.reduce((sum: number, a: SavedAdItem) => sum + (a.runningDays != null ? 1 : 0), 0);
-        const domniosUnicos = ads
-          .map((a: SavedAdItem) => a.destinationDomain ?? '')
-          .filter((d: string) => d.length > 0)
-          .reduce((unique: string[], d: string) => {
-            if (!unique.includes(d)) unique.push(d);
-            return unique;
-          }, []).length;
-        const mediaDias = totalOfertas > 0
-          ? ads.reduce((sum: number, a: SavedAdItem) => sum + (a.runningDays ?? 0), 0) / totalOfertas
-          : 0;
-        const ofertasComScore = ads.filter((a: SavedAdItem) => a.score != null);
-        const mediaScore = ofertasComScore.length > 0
-          ? ofertasComScore.reduce((sum: number, a: SavedAdItem) => sum + (a.score ?? 0), 0) / ofertasComScore.length
-          : 0;
-        const ofertasComClassificacao = ads.filter((a: SavedAdItem) => a.classification != null && a.classification > 0);
-        const mediaClassificacao = ofertasComClassificacao.length > 0
-          ? ofertasComClassificacao.reduce((sum: number, a: SavedAdItem) => sum + (a.classification ?? 0), 0) / ofertasComClassificacao.length
-          : 0;
-        const distClassificacao = [1, 2, 3, 4, 5].map(star => ({
-          star,
-          count: ads.filter((a: SavedAdItem) => a.classification === star).length
-        }));
-        const domainCounts = ads
-          .filter((a: SavedAdItem) => a.destinationDomain)
-          .reduce((acc: Record<string, number>, a: SavedAdItem) => {
-            acc[a.destinationDomain!] = (acc[a.destinationDomain!] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>);
-        const topDomains = Object.entries(domainCounts)
-          .sort(([, a], [, b]) => (b as number) - (a as number))
-          .slice(0, 5)
-          .map(([domain, count]) => ({ domain, count: count as number }));
-
-        setData({
-          totalOfertas, ativas, inativas, desconhecidas, totalCreativos,
-          domniosUnicos, mediaDias: Number(mediaDias.toFixed(1)),
-          mediaScore: Number(mediaScore.toFixed(1)),
-          mediaClassificacao: Number(mediaClassificacao.toFixed(1)),
-          distClassificacao, topDomains,
-        });
+        const res = await fetch('/api/dashboard/summary', { cache: 'no-store' });
+        if (!res.ok) throw new Error('API error');
+        const json = await res.json();
+        if (!active) return;
+        if (json.success && json.data) {
+          setData({
+            totalOfertas: json.data.totalOfertas ?? 0,
+            ativas: json.data.ativas ?? 0,
+            inativas: json.data.inativas ?? 0,
+            desconhecidas: json.data.desconhecidas ?? 0,
+            totalCreativos: 0,
+            domniosUnicos: (json.data.topDomains ?? []).length,
+            mediaDias: 0,
+            mediaScore: json.data.mediaScore ?? 0,
+            mediaClassificacao: json.data.mediaClassificacao ?? 0,
+            distClassificacao: [],
+            topDomains: json.data.topDomains ?? [],
+          });
+        }
       } catch (e: any) {
-        setError(e.message ?? 'Erro desconhecido');
+        if (!active) return;
+        setError(e.message ?? 'Erro ao carregar resumo');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
     fetchSummary();
     const interval = setInterval(fetchSummary, 30_000);
-    return () => clearInterval(interval);
+    return () => { active = false; clearInterval(interval); };
   }, []);
 
   return { data, loading, error };
@@ -495,11 +466,26 @@ function DashboardPage({ summary, summaryLoading, summaryError, ofertas, totalOf
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <IndicatorCard title="Ofertas salvas" value={summary.totalOfertas} description="Total" />
         <IndicatorCard title="Ativas" value={summary.ativas} description="Com status ativo" />
-        <IndicatorCard title="Inativas" value={summary.inativas} description="Encerradas" />
-        <IndicatorCard title="Domínios" value={summary.domniosUnicos} description="Únicos" />
+        <IndicatorCard title="Favoritas" value={summary.favoritas ?? 0} description="Marcadas" />
+        <IndicatorCard title="Qualificadas" value={summary.qualificadas ?? 0} description="4-5 estrelas" />
+        <IndicatorCard title="Rastreando" value={summary.rastreando ?? 0} description="Ofertas monitoradas" />
+        <IndicatorCard title="Escalando" value={summary.escalando ?? 0} description="Em alta" />
         <IndicatorCard title="Score médio" value={summary.mediaScore ? `${summary.mediaScore}` : '—'} description="Oportunidade (0-100)" />
         <IndicatorCard title="Classif. média" value={summary.mediaClassificacao ? `${summary.mediaClassificacao}/5` : '—'} description="De 1 a 5 estrelas" />
       </div>
+      {summary.topDomains?.length > 0 && (
+        <div className="mt-8 bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Top Domínios</h2>
+          <div className="space-y-2">
+            {summary.topDomains.map((d: any) => (
+              <div key={d.domain} className="flex items-center justify-between bg-neutral-900 rounded-lg px-4 py-2">
+                <span className="text-sm text-white font-mono">{d.domain}</span>
+                <span className="text-xs text-brand-400 font-bold">{d.count} anúncios</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {totalOfertas > 0 && (
         <div className="mt-8">
           <h2 className="text-xl font-bold text-white mb-4">Ofertas em Destaque</h2>
@@ -526,8 +512,26 @@ function DashboardPage({ summary, summaryLoading, summaryError, ofertas, totalOf
 function MineracaoPage({ addSearch }: { addSearch: (q: string, t?: string) => void }) {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
+  const [expandedNiche, setExpandedNiche] = useState<string | null>(null);
 
-  const niches = ['Infoprodutos', 'E-commerce', 'Fitness', 'Finanças', 'Educação', 'Beleza', 'Saúde', 'Tecnologia', 'Viagens', 'Alimentação'];
+  const niches: Record<string, string[]> = {
+    'Infoprodutos': ['curso online', 'mentoria', 'treinamento', 'ebook', 'membership', 'workshop'],
+    'E-commerce': ['loja online', 'dropshipping', 'produto physical', 'oferta limitada', 'frete grátis'],
+    'Fitness': ['emagrecimento', 'musculação', 'dieta', 'personal trainer', 'suplemento'],
+    'Finanças': ['investimento', 'renda extra', 'trading', 'criptomoeda', 'finanças pessoais'],
+    'Educação': ['curso gratuito', 'aula online', 'certificação', 'idiomas', 'concurso'],
+    'Beleza': ['skincare', 'maquiagem', 'cabelo', 'produto capilar', 'botox caseiro'],
+    'Saúde': ['remédio natural', 'suplemento', 'emagrecer', 'ansiedade', 'dor nas costas'],
+    'Tecnologia': ['software', 'SaaS', 'ferramenta online', 'app', 'automação'],
+    'Viagens': ['passagem barata', 'hotel', 'pacote de viagem', 'turismo', 'mochilão'],
+    'Alimentação': ['dieta alimentar', 'receita', 'restaurante', 'delivery', 'plano de refeições'],
+    'Pet': ['produto para pet', 'ração', 'veterinário', 'pet shop', 'cachorro'],
+    'Moda': ['roupa feminina', 'moda masculina', 'acessórios', 'bijuteria', 'sapato'],
+    'Casa': ['decoração', 'móvel', 'utensílio doméstico', 'organização', 'jardim'],
+    'Baby': ['produto para bebê', 'fralda', 'berço', 'maternidade', 'creche'],
+    'B2B': ['serviço para empresas', 'marketing', 'consultoria', 'contabilidade', 'coworking'],
+    'SaaS/API': ['integração', 'automação de marketing', 'CRM', 'ferramenta de vendas', 'API'],
+  };
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -544,35 +548,43 @@ function MineracaoPage({ addSearch }: { addSearch: (q: string, t?: string) => vo
         <h2 className="text-lg font-semibold text-white mb-4">Pesquisar na Meta Ads Library</h2>
         <div className="flex gap-3">
           <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            type="text" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Ex: emagrecimento, curso online, dropshipping..."
             className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
           />
-          <button
-            onClick={handleSearch}
-            disabled={searching || !query.trim()}
-            className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
+          <button onClick={handleSearch} disabled={searching || !query.trim()}
+            className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2">
             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Pesquisar
           </button>
         </div>
-        <p className="text-xs text-neutral-500 mt-2">Abrirá a Meta Ads Library em nova aba com os resultados da pesquisa.</p>
+        <p className="text-xs text-neutral-500 mt-2">Abrirá a Meta Ads Library em nova aba com os resultados.</p>
       </div>
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Nichos Populares</h2>
-        <div className="flex flex-wrap gap-2">
-          {niches.map((niche) => (
-            <button
-              key={niche}
-              onClick={() => { setQuery(niche); }}
-              className="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors"
-            >
-              {niche}
-            </button>
+        <h2 className="text-lg font-semibold text-white mb-2">Biblioteca de Palavras-chave por Nicho</h2>
+        <p className="text-xs text-neutral-500 mb-4">Palavras-chave estratégicas para pesquisa de ofertas low ticket.</p>
+        <div className="space-y-2">
+          {Object.entries(niches).map(([niche, keywords]) => (
+            <div key={niche} className="bg-neutral-900 rounded-xl overflow-hidden">
+              <button onClick={() => setExpandedNiche(expandedNiche === niche ? null : niche)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-800 transition-colors">
+                <span className="text-sm text-white font-medium">{niche}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-neutral-500">{keywords.length} termos</span>
+                  <ChevronDown className={`h-4 w-4 text-neutral-500 transition-transform ${expandedNiche === niche ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+              {expandedNiche === niche && (
+                <div className="px-4 pb-3 flex flex-wrap gap-2">
+                  {keywords.map((kw) => (
+                    <button key={kw} onClick={() => setQuery(kw)}
+                      className="px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-brand-600/20 hover:text-brand-400 hover:border-brand-600/30 transition-colors">
+                      {kw}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -581,33 +593,187 @@ function MineracaoPage({ addSearch }: { addSearch: (q: string, t?: string) => vo
 }
 
 function RastreamentoPage({ events, loading }: { events: TrackingEvent[]; loading: boolean }) {
-  if (loading) return <LoadingState />;
+  const [trackedOffers, setTrackedOffers] = useState<any[]>([]);
+  const [counters, setCounters] = useState({ total: 0, scaling: 0, dropping: 0, dead: 0, collecting: 0 });
+  const [trackedLoading, setTrackedLoading] = useState(true);
+  const [addUrl, setAddUrl] = useState('');
+  const [addLabel, setAddLabel] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchTracked();
+  }, []);
+
+  async function fetchTracked() {
+    try {
+      const res = await fetch('/api/tracked-offers', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setTrackedOffers(json.data ?? []);
+        setCounters(json.counters ?? { total: 0, scaling: 0, dropping: 0, dead: 0, collecting: 0 });
+      }
+    } catch { /* ignore */ }
+    setTrackedLoading(false);
+  }
+
+  async function handleAddTracked() {
+    if (!addUrl.trim()) return;
+    setAdding(true);
+    try {
+      const adLibraryId = addUrl.trim().match(/id=(\d+)/)?.[1] ?? addUrl.trim();
+      await fetch('/api/tracked-offers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adLibraryId, label: addLabel || undefined }),
+      });
+      setAddUrl('');
+      setAddLabel('');
+      fetchTracked();
+    } catch { /* ignore */ }
+    setAdding(false);
+  }
+
+  async function handleCheck(id: string) {
+    setCheckingId(id);
+    try {
+      await fetch(`/api/tracked-offers/${id}/check`, { method: 'POST' });
+      fetchTracked();
+    } catch { /* ignore */ }
+    setCheckingId(null);
+  }
+
+  async function handleRemove(id: string) {
+    if (!confirm('Parar de rastrear esta oferta?')) return;
+    try {
+      await fetch(`/api/tracked-offers/${id}`, { method: 'DELETE' });
+      fetchTracked();
+    } catch { /* ignore */ }
+  }
+
+  const statusStyles: Record<string, string> = {
+    scaling: 'text-green-400 bg-green-400/10',
+    dropping: 'text-red-400 bg-red-400/10',
+    dead: 'text-neutral-500 bg-neutral-800',
+    collecting: 'text-blue-400 bg-blue-400/10',
+    unknown: 'text-neutral-400 bg-neutral-800',
+  };
+  const statusLabels: Record<string, string> = {
+    scaling: 'Escalando', dropping: 'Caindo', dead: 'Morta', collecting: 'Coletando', unknown: 'Sem dados',
+  };
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-6">Rastreamento de Ofertas</h1>
-      {events.length === 0 ? (
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-white">{counters.total}</p>
+          <p className="text-xs text-neutral-500">Rastreando</p>
+        </div>
+        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-green-400">{counters.scaling}</p>
+          <p className="text-xs text-neutral-500">Escalando</p>
+        </div>
+        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-red-400">{counters.dropping}</p>
+          <p className="text-xs text-neutral-500">Caindo</p>
+        </div>
+        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-neutral-500">{counters.dead}</p>
+          <p className="text-xs text-neutral-500">Mortas</p>
+        </div>
+        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-blue-400">{counters.collecting}</p>
+          <p className="text-xs text-neutral-500">Coletando</p>
+        </div>
+      </div>
+
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Adicionar ao Rastreamento</h2>
+        <p className="text-xs text-neutral-500 mb-3">Cole o link da Biblioteca de Anúncios ou o ID do anúncio.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input
+            type="text" value={addUrl} onChange={(e) => setAddUrl(e.target.value)}
+            placeholder="https://www.facebook.com/ads/library/?id=... ou ID"
+            className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+          <input
+            type="text" value={addLabel} onChange={(e) => setAddLabel(e.target.value)}
+            placeholder="Rótulo (opcional)"
+            className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
+          />
+          <button onClick={handleAddTracked} disabled={adding || !addUrl.trim()}
+            className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flag className="h-4 w-4" />}
+            Rastrear
+          </button>
+        </div>
+      </div>
+
+      {trackedLoading ? <LoadingState /> : trackedOffers.length === 0 ? (
         <EmptyState
-          title="Nenhum evento de rastreamento"
-          description="Salve ofertas e configure rastreamento para monitorar mudanças de status, criativos e domínios."
+          title="Nenhuma oferta rastreada"
+          description="Adicione uma oferta acima para monitorar evolução de anúncios ativos ao longo do tempo."
           icon={<Flag className="h-8 w-8" />}
         />
       ) : (
         <div className="space-y-3">
-          {events.map((event) => (
-            <div key={event.id} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4">
+          {trackedOffers.map((offer: any) => (
+            <div key={offer.id} className="bg-neutral-950 border border-neutral-800 rounded-xl p-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white font-medium">{event.pageName ?? event.adLibraryId ?? 'Oferta'}</p>
-                  <p className="text-xs text-neutral-500">{event.field}: {event.oldValue ?? '—'} → {event.newValue ?? '—'}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-white font-medium truncate">{offer.label ?? offer.pageName ?? offer.adLibraryId}</p>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusStyles[offer.status] ?? statusStyles.unknown}`}>
+                      {statusLabels[offer.status] ?? offer.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500">
+                    {offer.adCountCurrent} anúncio(s) · Última checagem: {offer.lastCheckedAt ? new Date(offer.lastCheckedAt).toLocaleString('pt-BR') : 'Nunca'}
+                  </p>
+                  {offer.snapshots?.length > 1 && (
+                    <div className="flex items-center gap-1 mt-2">
+                      {offer.snapshots.slice(0, 10).reverse().map((s: any, i: number) => (
+                        <div key={i} className="w-6 rounded-sm" style={{ height: `${Math.max(4, s.adCount * 3)}px`, backgroundColor: offer.status === 'scaling' ? '#22c55e' : offer.status === 'dropping' ? '#ef4444' : '#6366f1' }} title={`${s.adCount} anúncios`} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={event.eventType} />
-                  <span className="text-xs text-neutral-500">{new Date(event.createdAt).toLocaleDateString('pt-BR')}</span>
+                <div className="flex items-center gap-2 shrink-0 ml-4">
+                  <button onClick={() => handleCheck(offer.id)} disabled={checkingId === offer.id}
+                    className="p-2 text-neutral-500 hover:text-brand-400 transition-colors" title="Rechecar agora">
+                    {checkingId === offer.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  </button>
+                  <a href={`https://www.facebook.com/ads/library/?id=${offer.adLibraryId}`} target="_blank" rel="noopener noreferrer"
+                    className="p-2 text-neutral-500 hover:text-blue-400 transition-colors" title="Ver na Biblioteca">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                  <button onClick={() => handleRemove(offer.id)}
+                    className="p-2 text-neutral-500 hover:text-red-400 transition-colors" title="Parar rastreamento">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {events.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-white mb-4">Histórico de Eventos</h2>
+          <div className="space-y-2">
+            {events.slice(0, 20).map((event) => (
+              <div key={event.id} className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-white">{event.pageName ?? event.adLibraryId}</p>
+                  <p className="text-xs text-neutral-500">{event.field}: {event.oldValue ?? '—'} → {event.newValue ?? '—'}</p>
+                </div>
+                <span className="text-xs text-neutral-500">{new Date(event.createdAt).toLocaleDateString('pt-BR')}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -726,11 +892,7 @@ function OfertasMineradasPage({ ofertas, loading, error }: { ofertas: SavedAdIte
           title="Nenhuma oferta minerada"
           description="Use a ferramenta de Mineração para buscar ofertas na Meta Ads Library."
           icon={<TrendingUp className="h-8 w-8" />}
-          action={
-            <button onClick={() => window.location.hash = '#/mineracao'} className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors">
-              Ir para Mineração
-            </button>
-          }
+          action={<span className="text-xs text-neutral-500">Use o menu Mineração para começar</span>}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -756,11 +918,7 @@ function MinhasOfertasPage({ ofertas, loading, error, totalOfertas, page, setPag
           title="Nenhuma oferta salva"
           description="Comece uma mineração na Meta Ads Library para salvar suas primeiras ofertas."
           icon={<Heart className="h-8 w-8" />}
-          action={
-            <button onClick={() => window.location.hash = '#/mineracao'} className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors">
-              Começar mineração
-            </button>
-          }
+          action={<span className="text-xs text-neutral-500">Use o menu Mineração para começar</span>}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -790,43 +948,92 @@ function FavoritosPage({ ofertas, loading }: { ofertas: SavedAdItem[]; loading: 
 }
 
 function SwipePage({ ofertas, loading }: { ofertas: SavedAdItem[]; loading: boolean }) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [decisions, setDecisions] = useState<{ id: string; decision: 'like' | 'save' | 'skip' }[]>([]);
+  const [deck, setDeck] = useState<any[]>([]);
+  const [deckLoading, setDeckLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, saved: 0, discarded: 0, favorited: 0, remaining: 0 });
+  const [autoMode, setAutoMode] = useState(false);
+  const [autoSpeed, setAutoSpeed] = useState(3000);
 
-  const unprocessed = ofertas.filter((ad) => !decisions.find((d) => d.id === ad.id));
-  const currentAd = unprocessed[0];
+  useEffect(() => { fetchDeck(); fetchStats(); }, []);
 
-  const handleDecision = (decision: 'like' | 'save' | 'skip') => {
-    if (!currentAd) return;
-    setDecisions((prev) => [...prev, { id: currentAd.id, decision }]);
-  };
+  async function fetchDeck() {
+    try {
+      const res = await fetch('/api/swipe/deck?limit=20', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setDeck(json.data ?? []);
+      }
+    } catch { /* ignore */ }
+    setDeckLoading(false);
+  }
 
-  if (loading) return <LoadingState />;
-  if (ofertas.length === 0) {
+  async function fetchStats() {
+    try {
+      const res = await fetch('/api/swipe/stats', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setStats(json.data ?? { total: 0, saved: 0, discarded: 0, favorited: 0, remaining: 0 });
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function handleDecision(savedAdId: string, decision: string) {
+    try {
+      await fetch('/api/swipe/decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adId: savedAdId, decision }),
+      });
+      setDeck(prev => prev.filter(d => d.savedAdId !== savedAdId));
+      fetchStats();
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => {
+    if (!autoMode || deck.length === 0) return;
+    const timer = setTimeout(() => {
+      const first = deck[0];
+      if (first) handleDecision(first.savedAdId, 'save');
+    }, autoSpeed);
+    return () => clearTimeout(timer);
+  }, [autoMode, deck, autoSpeed]);
+
+  const currentAd = deck[0];
+
+  if (deckLoading) return <LoadingState />;
+
+  if (!currentAd) {
     return (
       <div>
         <h1 className="text-2xl font-bold text-white mb-6">Swipe</h1>
-        <EmptyState title="Nenhuma oferta para analisar" description="Salve ofertas primeiro para usar o modo swipe." icon={<ArrowRightLeft className="h-8 w-8" />} />
-      </div>
-    );
-  }
-
-  if (!currentAd) {
-    const likes = decisions.filter((d) => d.decision === 'like').length;
-    const saves = decisions.filter((d) => d.decision === 'save').length;
-    const skips = decisions.filter((d) => d.decision === 'skip').length;
-    return (
-      <div>
-        <h1 className="text-2xl font-bold text-white mb-6">Swipe — Concluído</h1>
-        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-8 text-center">
-          <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-4" />
-          <p className="text-xl font-bold text-white mb-2">Todas as ofertas analisadas!</p>
-          <div className="flex justify-center gap-6 mt-4">
-            <div><p className="text-2xl font-bold text-green-400">{likes}</p><p className="text-xs text-neutral-500">Curtidas</p></div>
-            <div><p className="text-2xl font-bold text-blue-400">{saves}</p><p className="text-xs text-neutral-500">Salvas</p></div>
-            <div><p className="text-2xl font-bold text-neutral-400">{skips}</p><p className="text-xs text-neutral-500">Ignoradas</p></div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-white">{stats.remaining}</p>
+            <p className="text-xs text-neutral-500">Restantes</p>
+          </div>
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-green-400">{stats.saved}</p>
+            <p className="text-xs text-neutral-500">Salvas</p>
+          </div>
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-red-400">{stats.discarded}</p>
+            <p className="text-xs text-neutral-500">Descartadas</p>
+          </div>
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-pink-400">{stats.favorited}</p>
+            <p className="text-xs text-neutral-500">Favoritas</p>
+          </div>
+          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-neutral-400">{stats.total}</p>
+            <p className="text-xs text-neutral-500">Total</p>
           </div>
         </div>
+        <EmptyState
+          title="Deck esvaziado!"
+          description="Todas as ofertas foram analisadas. Volte para Minhas Ofertas para ver as salvas."
+          icon={<CheckCircle className="h-8 w-8" />}
+          action={<button onClick={() => fetchDeck()} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm">Recarregar deck</button>}
+        />
       </div>
     );
   }
@@ -834,89 +1041,250 @@ function SwipePage({ ofertas, loading }: { ofertas: SavedAdItem[]; loading: bool
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-6">Swipe</h1>
+      <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAutoMode(!autoMode)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${autoMode ? 'bg-green-600 text-white' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}>
+            {autoMode ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {autoMode ? 'Pausar' : 'Auto'}
+          </button>
+          {autoMode && (
+            <select value={autoSpeed} onChange={(e) => setAutoSpeed(Number(e.target.value))}
+              className="bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white">
+              <option value={1500}>Rápido (1.5s)</option>
+              <option value={3000}>Normal (3s)</option>
+              <option value={5000}>Lento (5s)</option>
+            </select>
+          )}
+        </div>
+        <span className="text-xs text-neutral-500">{deck.length} restantes no deck</span>
+      </div>
       <div className="max-w-lg mx-auto">
         <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
-          <OfferCard ad={currentAd} />
+          <div className="flex items-start gap-3">
+            <div className="w-16 h-16 rounded-xl bg-neutral-800 flex items-center justify-center shrink-0 text-neutral-500 font-bold">
+              {currentAd.adLibraryId?.slice(0, 2).toUpperCase() ?? '—'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-white truncate">{currentAd.pageName ?? 'Sem nome'}</p>
+              <p className="text-xs text-neutral-500 mt-1">{currentAd.destinationDomain ?? '—'} · {currentAd.runningDays ?? 0} dias</p>
+              {currentAd.headline && <p className="text-sm text-neutral-300 mt-2 line-clamp-2">{currentAd.headline}</p>}
+              {currentAd.score != null && (
+                <p className="text-xs text-brand-400 mt-2 flex items-center gap-1"><Star className="h-3 w-3" /> Score: {currentAd.score}</p>
+              )}
+            </div>
+          </div>
         </div>
         <div className="flex justify-center gap-4">
-          <button onClick={() => handleDecision('skip')} className="px-8 py-3 bg-neutral-800 text-neutral-300 rounded-xl font-medium hover:bg-neutral-700 transition-colors flex items-center gap-2">
-            <X className="h-5 w-5" /> Ignorar
+          <button onClick={() => handleDecision(currentAd.savedAdId, 'discard')}
+            className="px-8 py-3 bg-neutral-800 text-neutral-300 rounded-xl font-medium hover:bg-neutral-700 transition-colors flex items-center gap-2">
+            <X className="h-5 w-5" /> Descartar
           </button>
-          <button onClick={() => handleDecision('save')} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" /> Salvar
+          <button onClick={() => handleDecision(currentAd.savedAdId, 'save')}
+            className="px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
+            <Save className="h-5 w-5" /> Salvar
           </button>
-          <button onClick={() => handleDecision('like')} className="px-8 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2">
-            <Heart className="h-5 w-5" /> Curtir
+          <button onClick={() => handleDecision(currentAd.savedAdId, 'favorite')}
+            className="px-8 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2">
+            <Heart className="h-5 w-5" /> Favoritar
           </button>
         </div>
-        <p className="text-center text-xs text-neutral-500 mt-4">{decisions.length} de {ofertas.length} analisadas</p>
+        <p className="text-center text-xs text-neutral-500 mt-4">Oferta {stats.total - stats.remaining + 1} de {stats.total}</p>
       </div>
     </div>
   );
 }
 
 function TranscricaoPage() {
+  const [transcripts, setTranscripts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [transcribing, setTranscribing] = useState(false);
+  const [configured, setConfigured] = useState(true);
+
+  useEffect(() => { fetchTranscripts(); }, []);
+
+  async function fetchTranscripts() {
+    try {
+      const res = await fetch('/api/media/transcripts', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setTranscripts(json.data ?? []);
+        if (json.configured === false) setConfigured(false);
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  async function handleTranscribe() {
+    setTranscribing(true);
+    try {
+      const res = await fetch('/api/media/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceType: 'upload' }),
+      });
+      const json = await res.json();
+      if (json.configured === false) setConfigured(false);
+      fetchTranscripts();
+    } catch { /* ignore */ }
+    setTranscribing(false);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-6">Transcrição de Mídias</h1>
-      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
-        <div className="text-center py-8">
-          <Music className="h-12 w-12 text-neutral-600 mx-auto mb-4" />
-          <p className="text-lg font-semibold text-white mb-2">Serviço de Transcrição</p>
-          <p className="text-sm text-neutral-400 max-w-md mx-auto mb-6">
-            Para usar a transcrição de mídias, configure um provedor de Speech-to-Text (ex: OpenAI Whisper, Google Speech-to-Text).
-          </p>
-          <div className="bg-neutral-900 rounded-xl p-4 max-w-md mx-auto text-left">
-            <p className="text-xs text-neutral-500 mb-2">Variáveis de ambiente necessárias:</p>
-            <code className="text-xs text-brand-400 block">STT_PROVIDER=openai</code>
-            <code className="text-xs text-brand-400 block">STT_API_KEY=sua-chave-aqui</code>
+
+      {!configured ? (
+        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+          <div className="text-center py-8">
+            <AlertTriangle className="h-12 w-12 text-yellow-400 mx-auto mb-4" />
+            <p className="text-lg font-semibold text-white mb-2">Serviço de transcrição não configurado</p>
+            <p className="text-sm text-neutral-400 max-w-md mx-auto mb-6">
+              Configure uma das variáveis de ambiente para ativar a transcrição de áudio/vídeo.
+            </p>
+            <div className="bg-neutral-900 rounded-xl p-4 max-w-md mx-auto text-left space-y-2">
+              <p className="text-xs text-neutral-500 font-medium">Opções de configuração:</p>
+              <code className="text-xs text-brand-400 block">TRANSCRIBE_API_URL=https://seu-servico-stt.com/transcribe</code>
+              <code className="text-xs text-brand-400 block">TRANSCRIBE_API_KEY=sua-chave</code>
+              <p className="text-xs text-neutral-500 mt-2">Ou use a API OpenAI:</p>
+              <code className="text-xs text-brand-400 block">OPENAI_API_KEY=sk-...</code>
+            </div>
           </div>
         </div>
+      ) : (
+        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Nova Transcrição</h2>
+          <p className="text-sm text-neutral-400 mb-4">Faça upload de um arquivo de áudio ou vídeo (até 500MB) para transcrever.</p>
+          <div className="flex gap-3">
+            <input type="file" accept="audio/*,video/*" className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-brand-600 file:text-white file:text-sm file:cursor-pointer" />
+            <button onClick={handleTranscribe} disabled={transcribing}
+              className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+              {transcribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Transcrever
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Transcrições Anteriores</h2>
+        {loading ? <LoadingState /> : transcripts.length === 0 ? (
+          <EmptyState title="Nenhuma transcrição" description="Faça upload de um áudio ou vídeo para transcrever." icon={<Music className="h-8 w-8" />} />
+        ) : (
+          <div className="space-y-2">
+            {transcripts.map((t: any) => (
+              <div key={t.id} className="flex items-center justify-between bg-neutral-900 rounded-lg px-4 py-3">
+                <div>
+                  <p className="text-sm text-white font-medium">{t.fileName ?? `Transcrição ${t.id.slice(0, 8)}`}</p>
+                  <p className="text-xs text-neutral-500">{t.language} · {t.segmentsCount} segmentos · {t.status}</p>
+                </div>
+                <StatusBadge status={t.status === 'done' ? 'completed' : t.status === 'error' ? 'failed' : t.status === 'transcribing' ? 'running' : 'pending'} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function AnaliseTrafegoPage({ ofertas }: { ofertas: SavedAdItem[] }) {
-  const [url, setUrl] = useState('');
+  const [domain, setDomain] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+
   const domainCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const counts: Record<string, { count: number; activeCount: number; platforms: Set<string>; mediaTypes: Set<string>; ctas: Set<string>; firstSeen: string; lastSeen: string }> = {};
     ofertas.forEach((ad) => {
-      if (ad.destinationDomain) {
-        counts[ad.destinationDomain] = (counts[ad.destinationDomain] || 0) + 1;
-      }
+      if (!ad.destinationDomain) return;
+      const d = ad.destinationDomain;
+      if (!counts[d]) counts[d] = { count: 0, activeCount: 0, platforms: new Set(), mediaTypes: new Set(), ctas: new Set(), firstSeen: ad.savedAt, lastSeen: ad.savedAt };
+      const entry = counts[d];
+      entry.count++;
+      if (ad.status === 'active') entry.activeCount++;
+      (ad.platforms ?? []).forEach((p: string) => entry.platforms.add(p));
+      if (ad.mediaType) entry.mediaTypes.add(ad.mediaType);
+      if (ad.cta) entry.ctas.add(ad.cta);
     });
-    return Object.entries(counts).sort(([, a], [, b]) => b - a);
+    return Object.entries(counts).sort(([, a], [, b]) => b.count - a.count);
   }, [ofertas]);
+
+  async function handleAnalyze() {
+    if (!domain.trim()) return;
+    setAnalyzing(true);
+    const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const found = domainCounts.find(([d]) => d.includes(cleanDomain));
+    setAnalysisResult(found ? { domain: found[0], ...found[1], platforms: [...found[1].platforms], mediaTypes: [...found[1].mediaTypes], ctas: [...found[1].ctas] } : null);
+    setAnalyzing(false);
+  }
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-6">Análise de Tráfego</h1>
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
         <h2 className="text-lg font-semibold text-white mb-4">Analisar Domínio</h2>
-        <div className="flex gap-3 mb-4">
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="exemplo.com.br"
-            className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
-          />
-          <button className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2">
+        <div className="flex gap-3">
+          <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+            placeholder="exemplo.com.br" className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none" />
+          <button onClick={handleAnalyze} disabled={analyzing || !domain.trim()}
+            className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2 disabled:opacity-50">
             <Globe className="h-4 w-4" /> Analisar
           </button>
         </div>
       </div>
+
+      {analysisResult && (
+        <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="h-5 w-5 text-brand-400" />
+            <h2 className="text-lg font-semibold text-white">Dado Observado: {analysisResult.domain}</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            <div className="bg-neutral-900 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-white">{analysisResult.count}</p>
+              <p className="text-xs text-neutral-500">Anúncios totais</p>
+            </div>
+            <div className="bg-neutral-900 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-green-400">{analysisResult.activeCount}</p>
+              <p className="text-xs text-neutral-500">Ativos agora</p>
+            </div>
+            <div className="bg-neutral-900 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-white">{analysisResult.platforms.length}</p>
+              <p className="text-xs text-neutral-500">Plataformas</p>
+            </div>
+            <div className="bg-neutral-900 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-white">{analysisResult.mediaTypes.length}</p>
+              <p className="text-xs text-neutral-500">Tipos de mídia</p>
+            </div>
+          </div>
+          <div className="space-y-2 text-sm">
+            {analysisResult.platforms.length > 0 && <p className="text-neutral-400"><strong className="text-neutral-300">Plataformas:</strong> {analysisResult.platforms.join(', ')}</p>}
+            {analysisResult.mediaTypes.length > 0 && <p className="text-neutral-400"><strong className="text-neutral-300">Mídias:</strong> {analysisResult.mediaTypes.join(', ')}</p>}
+            {analysisResult.ctas.length > 0 && <p className="text-neutral-400"><strong className="text-neutral-300">CTAs:</strong> {analysisResult.ctas.join(', ')}</p>}
+          </div>
+        </div>
+      )}
+
+      {!analysisResult && domain && !analyzing && (
+        <div className="bg-neutral-950 border border-yellow-900/50 rounded-2xl p-6 mb-6 text-center">
+          <p className="text-sm text-yellow-400">Domínio "{domain}" não encontrado nas ofertas salvas.</p>
+          <p className="text-xs text-neutral-500 mt-1">Salve ofertas que apontam para este domínio para ver dados observáveis.</p>
+        </div>
+      )}
+
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Domínios Mais Frequentes</h2>
         {domainCounts.length === 0 ? (
           <p className="text-sm text-neutral-500">Nenhum domínio encontrado nas ofertas salvas.</p>
         ) : (
           <div className="space-y-2">
-            {domainCounts.slice(0, 10).map(([domain, count]) => (
-              <div key={domain} className="flex items-center justify-between bg-neutral-900 rounded-lg px-4 py-2">
-                <span className="text-sm text-white font-mono">{domain}</span>
-                <span className="text-xs text-brand-400 font-bold">{count} anúncios</span>
+            {domainCounts.slice(0, 15).map(([d, info]) => (
+              <div key={d} className="flex items-center justify-between bg-neutral-900 rounded-lg px-4 py-2 cursor-pointer hover:bg-neutral-800 transition-colors" onClick={() => { setDomain(d); }}>
+                <div>
+                  <span className="text-sm text-white font-mono">{d}</span>
+                  <span className="text-xs text-neutral-500 ml-2">{info.activeCount} ativos</span>
+                </div>
+                <span className="text-xs text-brand-400 font-bold">{info.count} anúncios</span>
               </div>
             ))}
           </div>
@@ -928,37 +1296,143 @@ function AnaliseTrafegoPage({ ofertas }: { ofertas: SavedAdItem[] }) {
 
 function ClonarPaginasPage() {
   const [url, setUrl] = useState('');
+  const [mode, setMode] = useState('sales');
+  const [cloning, setCloning] = useState(false);
+  const [clonedPages, setClonedPages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { fetchCloned(); }, []);
+
+  async function fetchCloned() {
+    try {
+      const res = await fetch('/api/clone', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setClonedPages(json.data ?? []);
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  async function handleClone() {
+    if (!url.trim()) return;
+    setCloning(true);
+    try {
+      await fetch('/api/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceUrl: url.trim(), mode }),
+      });
+      setUrl('');
+      fetchCloned();
+    } catch { /* ignore */ }
+    setCloning(false);
+  }
+
+  async function handleExport(id: string) {
+    try {
+      const res = await fetch(`/api/clone/${id}/export`, { method: 'POST' });
+      if (res.ok) {
+        const json = await res.json();
+        const blob = new Blob([json.data.html], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = json.data.filename;
+        a.click();
+      }
+    } catch { /* ignore */ }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-6">Clonar Páginas</h1>
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 mb-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Análise Estrutural</h2>
-        <p className="text-sm text-neutral-400 mb-4">Insira a URL de uma página para analisar sua estrutura, títulos, links e tecnologias utilizadas.</p>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://exemplo.com/pagina"
-            className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none"
-          />
-          <button className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors flex items-center gap-2">
-            <Copy className="h-4 w-4" /> Analisar
+        <h2 className="text-lg font-semibold text-white mb-4">Capturar Página</h2>
+        <p className="text-xs text-neutral-500 mb-3">A página será capturada e sanitizada (pixels e rastreadores removidos).</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+          <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://exemplo.com/pagina"
+            className="md:col-span-2 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-600 focus:border-transparent outline-none" />
+          <select value={mode} onChange={(e) => setMode(e.target.value)}
+            className="bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white">
+            <option value="sales">Página de vendas</option>
+            <option value="quiz">Quiz / Funil</option>
+          </select>
+          <button onClick={handleClone} disabled={cloning || !url.trim()}
+            className="px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            {cloning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+            Capturar
           </button>
         </div>
+        <div className="bg-yellow-950/30 border border-yellow-900/50 rounded-lg p-3 mt-3">
+          <p className="text-xs text-yellow-400">Aviso: pixels e rastreadores do proprietário original são removidos. Revise o conteúdo antes de utilizar.</p>
+        </div>
       </div>
+
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
-        <EmptyState
-          title="Pronto para análise"
-          description="Cole uma URL acima e clique em Analisar para ver a estrutura da página."
-          icon={<Copy className="h-8 w-8" />}
-        />
+        <h2 className="text-lg font-semibold text-white mb-4">Páginas Capturadas</h2>
+        {loading ? <LoadingState /> : clonedPages.length === 0 ? (
+          <EmptyState title="Nenhuma página capturada" description="Cole uma URL acima e clique em Capturar." icon={<Copy className="h-8 w-8" />} />
+        ) : (
+          <div className="space-y-3">
+            {clonedPages.map((page: any) => (
+              <div key={page.id} className="flex items-center justify-between bg-neutral-900 rounded-lg px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white font-medium truncate">{page.title ?? page.sourceUrl}</p>
+                  <p className="text-xs text-neutral-500">{page.mode === 'sales' ? 'Vendas' : 'Quiz'} · {page.status} · {new Date(page.createdAt).toLocaleDateString('pt-BR')}</p>
+                </div>
+                <button onClick={() => handleExport(page.id)} className="px-3 py-1.5 text-xs bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors flex items-center gap-1">
+                  <Download className="h-3 w-3" /> Exportar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function ExtensaoPage({ health }: { health: any }) {
+  const [pairingToken, setPairingToken] = useState<string | null>(null);
+  const [pairing, setPairing] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
+
+  useEffect(() => { fetchSessions(); }, []);
+
+  async function fetchSessions() {
+    try {
+      const res = await fetch('/api/extension/sessions', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setSessions(json.data ?? []);
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function handlePair() {
+    setPairing(true);
+    try {
+      const res = await fetch('/api/extension/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device: 'chrome' }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setPairingToken(json.data.token);
+        fetchSessions();
+      }
+    } catch { /* ignore */ }
+    setPairing(false);
+  }
+
+  async function handleRevokeSession(id: string) {
+    try {
+      await fetch(`/api/extension/sessions/${id}`, { method: 'DELETE' });
+      fetchSessions();
+    } catch { /* ignore */ }
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-white mb-6">Extensão Chrome</h1>
@@ -973,56 +1447,71 @@ function ExtensaoPage({ health }: { health: any }) {
           <p className="text-sm text-neutral-400 mb-4">
             A extensão CaçaOferta detecta anúncios automaticamente na Meta Ads Library e permite salvar ofertas diretamente.
           </p>
-          <div className="space-y-3">
+          <div className="space-y-3 mb-6">
             <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
-              <span className="text-sm text-neutral-300">Service Worker</span>
-              <span className="text-xs text-brand-400 font-mono">Manifest V3</span>
+              <span className="text-sm text-neutral-300">Versão</span>
+              <span className="text-xs text-brand-400 font-mono">v1.0.0</span>
             </div>
             <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
-              <span className="text-sm text-neutral-300">Content Script</span>
-              <span className="text-xs text-brand-400">Meta Ads Library</span>
+              <span className="text-sm text-neutral-300">Manifest</span>
+              <span className="text-xs text-brand-400">V3</span>
             </div>
             <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
               <span className="text-sm text-neutral-300">Detecção</span>
-              <span className="text-xs text-brand-400">4 camadas fallback</span>
-            </div>
-            <div className="flex items-center justify-between bg-neutral-900 rounded-lg p-3">
-              <span className="text-sm text-neutral-300">Palavras-chave</span>
-              <span className="text-xs text-brand-400">150+ palavras, 15 nichos</span>
+              <span className="text-xs text-brand-400">MutationObserver + 4 camadas</span>
             </div>
           </div>
+
+          <h3 className="text-sm font-semibold text-white mb-3">Pareamento</h3>
+          {!pairingToken ? (
+            <button onClick={handlePair} disabled={pairing}
+              className="w-full px-4 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              {pairing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Puzzle className="h-4 w-4" />}
+              Gerar Token de Pareamento
+            </button>
+          ) : (
+            <div className="bg-neutral-900 rounded-xl p-4">
+              <p className="text-xs text-neutral-500 mb-2">Token (copie e cole na extensão):</p>
+              <div className="flex items-center gap-2">
+                <code className="text-xs text-brand-400 flex-1 break-all">{pairingToken}</code>
+                <button onClick={() => navigator.clipboard.writeText(pairingToken)} className="p-2 text-neutral-500 hover:text-white transition-colors" title="Copiar">
+                  <Copy className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {sessions.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-xs font-semibold text-neutral-400 mb-2">Sessões Ativas</h4>
+              {sessions.map((s: any) => (
+                <div key={s.id} className="flex items-center justify-between bg-neutral-900 rounded-lg px-3 py-2 mb-1">
+                  <span className="text-xs text-neutral-300">{s.device} · {new Date(s.createdAt).toLocaleDateString('pt-BR')}</span>
+                  <button onClick={() => handleRevokeSession(s.id)} className="text-xs text-red-400 hover:text-red-300">Revogar</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
         <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Como Instalar</h2>
           <div className="space-y-4">
-            <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">1</div>
-              <div>
-                <p className="text-sm text-white font-medium">Baixe a extensão</p>
-                <p className="text-xs text-neutral-500">Faça download do pacote da extensão</p>
+            {[
+              { step: 1, title: 'Baixe a extensão', desc: 'Faça download do pacote da extensão' },
+              { step: 2, title: 'Abra chrome://extensions', desc: 'Ative o "Modo do desenvolvedor"' },
+              { step: 3, title: 'Carregue descompactada', desc: 'Clique em "Carregar extensão descompactada"' },
+              { step: 4, title: 'Configure o token', desc: 'Cole o token de pareamento na extensão' },
+              { step: 5, title: 'Acesse a Meta Ads Library', desc: 'A extensão ativa automaticamente na página' },
+            ].map(({ step, title, desc }) => (
+              <div key={step} className="flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">{step}</div>
+                <div>
+                  <p className="text-sm text-white font-medium">{title}</p>
+                  <p className="text-xs text-neutral-500">{desc}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">2</div>
-              <div>
-                <p className="text-sm text-white font-medium">Abra chrome://extensions</p>
-                <p className="text-xs text-neutral-500">Ative o "Modo do desenvolvedor"</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">3</div>
-              <div>
-                <p className="text-sm text-white font-medium">Carregue descompactada</p>
-                <p className="text-xs text-neutral-500">Clique em "Carregar extensão descompactada" e selecione a pasta</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center shrink-0 text-white text-xs font-bold">4</div>
-              <div>
-                <p className="text-sm text-white font-medium">Acesse a Meta Ads Library</p>
-                <p className="text-xs text-neutral-500">A extensão ativa automaticamente na página</p>
-              </div>
-            </div>
+            ))}
           </div>
           <div className="mt-6 p-3 bg-neutral-900 rounded-lg">
             <p className="text-xs text-neutral-500">

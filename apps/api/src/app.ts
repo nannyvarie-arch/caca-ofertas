@@ -10,6 +10,12 @@ import { registerSearchHistoryRoutes } from './routes/searchHistory';
 import { registerMiningRoutes } from './routes/mining';
 import { registerTrackingRoutes } from './routes/tracking';
 import { registerEbookRoutes } from './routes/ebooks';
+import { registerExtensionRoutes } from './routes/extension';
+import { registerTrackedOffersRoutes } from './routes/trackedOffers';
+import { registerSwipeRoutes } from './routes/swipe';
+import { registerMediaRoutes } from './routes/media';
+import { registerCloneRoutes } from './routes/clone';
+import { registerDashboardRoutes } from './routes/dashboard';
 import { createPrismaSavedAdsStore, type SavedAdsStore } from './services/savedAdsStore';
 
 export interface BuildServerOptions {
@@ -40,6 +46,12 @@ export function buildServer(options: BuildServerOptions = {}): ReturnType<typeof
   registerMiningRoutes(server, { resolveUser });
   registerTrackingRoutes(server, { resolveUser });
   registerEbookRoutes(server, { resolveUser });
+  registerExtensionRoutes(server, { resolveUser });
+  registerTrackedOffersRoutes(server, { resolveUser });
+  registerSwipeRoutes(server, { resolveUser });
+  registerMediaRoutes(server, { resolveUser });
+  registerCloneRoutes(server, { resolveUser });
+  registerDashboardRoutes(server, { resolveUser });
 
   return server;
 }

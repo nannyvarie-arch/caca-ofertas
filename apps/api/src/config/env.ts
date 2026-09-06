@@ -30,3 +30,18 @@ export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? '';
 
 /** Chave de serviço do Supabase (SECRETA - somente backend). */
 export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+
+/** URL do serviço de transcrição (STT). Ex: faster-whisper self-host ou API. */
+export const TRANSCRIBE_API_URL = process.env.TRANSCRIBE_API_URL ?? '';
+
+/** Chave do serviço de transcrição. */
+export const TRANSCRIBE_API_KEY = process.env.TRANSCRIBE_API_KEY ?? '';
+
+/** Chave da API OpenAI (para geração de imagem e transcrição). */
+export const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
+
+/** Chave do provedor de estimativa de tráfego (SimilarWeb-like). */
+export const TRAFFIC_API_KEY = process.env.TRAFFIC_API_KEY ?? '';
+
+/** Segredo para proteger endpoints de cron (tracking automático). */
+export const CRON_SECRET = process.env.CRON_SECRET ?? '';

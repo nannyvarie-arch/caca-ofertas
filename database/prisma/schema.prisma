@@ -28,6 +28,12 @@ model User {
   trackingEvents    TrackingEvent[]
   miningJobs        MiningJob[]
   ebooks            Ebook[]
+  trackedOffers     TrackedOffer[]
+  mediaTranscripts  MediaTranscript[]
+  analysisQuotas    AnalysisQuota[]
+  clonedPages       ClonedPage[]
+  swipeDecisions    SwipeDecision[]
+  swipeCollections  SwipeCollection[]
 }
 
 // FASE 06: `Ad` é o armazenamento canônico do contrato `NormalizedAd` (tokens
@@ -120,7 +126,8 @@ model SavedAd {
   domain Domain?   @relation(fields: [domainId], references: [id])
   tags   AdTag[]
   notes  Note[]
-  trackingEvents TrackingEvent[]
+  trackingEvents   TrackingEvent[]
+  swipeCollections SwipeCollectionItem[]
 
   @@unique([userId, adLibraryId])
   @@index([userId])
@@ -286,4 +293,134 @@ model EbookAsset {
   ebook Ebook @relation(fields: [ebookId], references: [id], onDelete: Cascade)
 
   @@index([ebookId])
+}
+
+// ─── RASTREAMENTO DE OFERTAS ────────────────────────────────────
+
+model TrackedOffer {
+  id             String   @id @default(uuid())
+  userId         String
+  adLibraryId    String
+  pageId         String?
+  pageName       String?
+  label          String?
+  status         String   @default("collecting") // collecting | scaling | dropping | dead | unknown
+  adCountCurrent Int      @default(0)
+  lastCheckedAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user      User            @relation(fields: [userId], references: [id])
+  snapshots AdCountSnapshot[]
+
+  @@unique([userId, adLibraryId])
+  @@index([userId])
+  @@index([status])
+}
+
+model AdCountSnapshot {
+  id             String   @id @default(uuid())
+  trackedOfferId String
+  adCount        Int
+  activeCount    Int      @default(0)
+  newCreatives   Int      @default(0)
+  metadata       Json?
+  takenAt        DateTime @default(now())
+
+  trackedOffer TrackedOffer @relation(fields: [trackedOfferId], references: [id], onDelete: Cascade)
+
+  @@index([trackedOfferId, takenAt(sort: Desc)])
+}
+
+// ─── TRANSCRIÇÃO DE MÍDIAS ──────────────────────────────────────
+
+model MediaTranscript {
+  id         String   @id @default(uuid())
+  userId     String
+  sourceType String   @default("upload") // upload | savedAd
+  sourceRef  String?
+  fileName   String?
+  language   String   @default("pt")
+  text       Json     @default("[]") // [{start, end, text}]
+  status     String   @default("pending") // pending | transcribing | done | error
+  error      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// ─── ANÁLISE DE TRÁFEGO (COTA) ──────────────────────────────────
+
+model AnalysisQuota {
+  id           String   @id @default(uuid())
+  userId       String
+  domain       String
+  usedToday    Int      @default(1)
+  date         DateTime @default(now()) // date only (start of day)
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, domain, date])
+  @@index([userId])
+}
+
+// ─── CLONAR PÁGINAS ─────────────────────────────────────────────
+
+model ClonedPage {
+  id          String   @id @default(uuid())
+  userId      String
+  sourceUrl   String
+  mode        String   @default("sales") // sales | quiz
+  title       String?
+  structure   Json     @default("{}")
+  assets      Json     @default("[]")
+  status      String   @default("pending") // pending | captured | edited | exported
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// ─── SWIPE / COLEÇÕES ───────────────────────────────────────────
+
+model SwipeDecision {
+  id        String   @id @default(uuid())
+  userId    String
+  adId      String
+  decision  String   // save | discard | favorite
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, adId])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model SwipeCollection {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+
+  user   User                  @relation(fields: [userId], references: [id])
+  items  SwipeCollectionItem[]
+
+  @@index([userId])
+}
+
+model SwipeCollectionItem {
+  collectionId String
+  savedAdId    String
+  createdAt    DateTime @default(now())
+
+  collection SwipeCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  savedAd    SavedAd         @relation(fields: [savedAdId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, savedAdId])
 }

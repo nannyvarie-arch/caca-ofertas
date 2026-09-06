@@ -146,6 +146,63 @@ export function registerSavedAdsRoutes(app: FastifyInstance, deps: SavedAdsRoute
     }
   });
 
+  // FASE 11 — Comparação de ofertas (antes de /:id para evitar conflito de rota)
+  app.post('/api/saved-ads/compare', async (request, reply) => {
+    const { userId } = await deps.resolveUser(request);
+    const body = request.body as { ids: string[] };
+    
+    if (!body.ids || !Array.isArray(body.ids) || body.ids.length < 2) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: 'É necessário fornecer pelo menos 2 IDs de ofertas para comparação.',
+        },
+      });
+    }
+
+    if (body.ids.length > 5) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: 'Máximo de 5 ofertas por comparação.',
+        },
+      });
+    }
+
+    const offers = await Promise.all(
+      body.ids.map((id) => deps.store.findSavedById(id, userId))
+    );
+
+    const missingOffer = offers.find((o, idx) => !o && body.ids[idx]);
+    if (missingOffer) {
+      throw notFound('Uma ou mais ofertas não encontradas.');
+    }
+
+    const comparison = [];
+    for (const offer of offers) {
+      if (!offer) continue;
+      const score = offer.score ?? await deps.store.calculateScore!(userId, offer.id);
+      comparison.push({
+        id: offer.id,
+        adLibraryId: offer.adLibraryId,
+        pageName: offer.ad?.pageName ?? null,
+        status: offer.ad?.status ?? 'unknown',
+        mediaType: offer.ad?.mediaType ?? 'unknown',
+        cta: offer.ad?.cta ?? null,
+        destinationDomain: offer.ad?.destinationDomain ?? null,
+        runningDays: offer.ad?.runningDays ?? null,
+        platforms: offer.ad?.platforms ?? [],
+        classification: offer.classification ?? null,
+        score,
+        savedAt: offer.savedAt,
+      });
+    }
+
+    return { success: true, data: { comparison } };
+  });
+
   app.get<{ Params: { id: string } }>('/api/saved-ads/:id', async (request) => {
     const { userId } = await deps.resolveUser(request);
     const row = await deps.store.findSavedById(request.params.id, userId);
@@ -224,62 +281,5 @@ export function registerSavedAdsRoutes(app: FastifyInstance, deps: SavedAdsRoute
     const { userId } = await deps.resolveUser(request);
     const score = await deps.store.calculateScore!(userId, request.params.id);
     return { success: true, data: { score } };
-  });
-
-  // FASE 11 — Comparação de ofertas
-  app.post('/api/saved-ads/compare', async (request, reply) => {
-    const { userId } = await deps.resolveUser(request);
-    const body = request.body as { ids: string[] };
-    
-    if (!body.ids || !Array.isArray(body.ids) || body.ids.length < 2) {
-      return reply.status(400).send({
-        success: false,
-        error: {
-          code: ERROR_CODES.VALIDATION_ERROR,
-          message: 'É necessário fornecer pelo menos 2 IDs de ofertas para comparação.',
-        },
-      });
-    }
-
-    if (body.ids.length > 5) {
-      return reply.status(400).send({
-        success: false,
-        error: {
-          code: ERROR_CODES.VALIDATION_ERROR,
-          message: 'Máximo de 5 ofertas por comparação.',
-        },
-      });
-    }
-
-    const offers = await Promise.all(
-      body.ids.map((id) => deps.store.findSavedById(id, userId))
-    );
-
-    const missingOffer = offers.find((o, idx) => !o && body.ids[idx]);
-    if (missingOffer) {
-      throw notFound('Uma ou mais ofertas não encontradas.');
-    }
-
-    const comparison = [];
-    for (const offer of offers) {
-      if (!offer) continue;
-      const score = offer.score ?? await deps.store.calculateScore!(userId, offer.id);
-      comparison.push({
-        id: offer.id,
-        adLibraryId: offer.adLibraryId,
-        pageName: offer.ad?.pageName ?? null,
-        status: offer.ad?.status ?? 'unknown',
-        mediaType: offer.ad?.mediaType ?? 'unknown',
-        cta: offer.ad?.cta ?? null,
-        destinationDomain: offer.ad?.destinationDomain ?? null,
-        runningDays: offer.ad?.runningDays ?? null,
-        platforms: offer.ad?.platforms ?? [],
-        classification: offer.classification ?? null,
-        score,
-        savedAt: offer.savedAt,
-      });
-    }
-
-    return { success: true, data: { comparison } };
   });
 }
