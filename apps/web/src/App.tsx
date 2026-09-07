@@ -1026,6 +1026,8 @@ function OfertasMineradasPage({ offers, loading, error, total, page, setPage }: 
   const [statusFilter, setStatusFilter] = useState('');
   const [lowTicketOnly, setLowTicketOnly] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
+  const [runningMining, setRunningMining] = useState(false);
+  const [miningResult, setMiningResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const statusColors: Record<string, string> = {
     nova: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
@@ -1040,6 +1042,28 @@ function OfertasMineradasPage({ offers, loading, error, total, page, setPage }: 
     nova: 'Nova', subindo: 'Subindo', estavel: 'Estável', caindo: 'Caindo', morta: 'Morta', coletando: 'Coletando',
   };
 
+  const handleRunMining = async () => {
+    setRunningMining(true);
+    setMiningResult(null);
+    try {
+      const res = await fetch('/api/mining/daily/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMiningResult({ success: true, message: `Mineração concluída: ${data.data.selectedCount ?? data.data.offersUpserted} ofertas selecionadas` });
+        window.location.reload();
+      } else {
+        setMiningResult({ success: false, message: data.error ?? 'Erro ao rodar mineração' });
+      }
+    } catch (e: any) {
+      setMiningResult({ success: false, message: e.message ?? 'Erro de conexão' });
+    } finally {
+      setRunningMining(false);
+    }
+  };
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
 
@@ -1047,8 +1071,24 @@ function OfertasMineradasPage({ offers, loading, error, total, page, setPage }: 
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Ofertas Mineradas</h1>
-        <span className="text-sm text-neutral-400">{total} ofertas</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-neutral-400">{total} ofertas</span>
+          <button onClick={handleRunMining} disabled={runningMining}
+            className="px-4 py-2 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+            {runningMining ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Rodar mineração agora
+          </button>
+        </div>
       </div>
+
+      {miningResult && (
+        <div className={`mb-4 p-3 rounded-xl ${miningResult.success ? 'bg-green-600/10 border border-green-600/30' : 'bg-red-600/10 border border-red-600/30'}`}>
+          <div className="flex items-center gap-2">
+            {miningResult.success ? <CheckCircle className="h-4 w-4 text-green-400" /> : <AlertTriangle className="h-4 w-4 text-red-400" />}
+            <span className="text-sm">{miningResult.success ? 'text-green-300' : 'text-red-300'} {miningResult.message}</span>
+          </div>
+        </div>
+      )}
 
       <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 mb-6">
         <div className="flex flex-wrap gap-3 items-center">
@@ -1072,9 +1112,21 @@ function OfertasMineradasPage({ offers, loading, error, total, page, setPage }: 
       {offers.length === 0 ? (
         <EmptyState
           title="Nenhuma oferta minerada"
-          description="Use a Mineração para buscar ofertas. A extensão coletará os dados em background."
+          description="A mineração diária automática roda todo dia às 5h BRT via GitHub Actions. Para rodar agora, clique em 'Rodar mineração agora' (requer extensão pareada e navegador aberto)."
           icon={<TrendingUp className="h-8 w-8" />}
-          action={<span className="text-xs text-neutral-500">Instale a extensão para coleta automática</span>}
+          action={
+            <div className="flex gap-2">
+              <button onClick={handleRunMining} disabled={runningMining}
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {runningMining ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Rodar mineração agora
+              </button>
+              <a href={PATHS.EXTENSAO} onClick={(e) => { e.preventDefault(); window.history.pushState(null, '', PATHS.EXTENSAO); window.dispatchEvent(new PopStateEvent('popstate')); }}
+                className="px-4 py-2 bg-neutral-800 text-neutral-300 rounded-lg font-medium hover:bg-neutral-700 transition-colors flex items-center gap-2">
+                <Puzzle className="h-4 w-4" /> Instalar extensão
+              </a>
+            </div>
+          }
         />
       ) : (
         <>
@@ -1103,6 +1155,7 @@ function OfertasMineradasPage({ offers, loading, error, total, page, setPage }: 
                 <div className="flex items-center justify-between text-xs text-neutral-500 mb-3">
                   <span>{offer.snapshots[0]?.activeAds ?? 0} ads ativos</span>
                   <span>{offer.snapshots[0]?.runningDays ?? 0}d rodando</span>
+                  <span>{offer.snapshots[0]?.creativeCount ?? 0} criativos</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1110,8 +1163,8 @@ function OfertasMineradasPage({ offers, loading, error, total, page, setPage }: 
                     {statusLabels[offer.status] ?? offer.status}
                   </span>
                   <div className="flex-1" />
-                  {offer.adLibraryUrl && <a href={offer.adLibraryUrl} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white transition-colors"><ExternalLink className="h-3.5 w-3.5" /></a>}
-                  {offer.funnelUrl && <a href={offer.funnelUrl} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white transition-colors"><Globe className="h-3.5 w-3.5" /></a>}
+                  {offer.adLibraryUrl && <a href={offer.adLibraryUrl} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white transition-colors" title="Ver na Biblioteca de Anúncios"><ExternalLink className="h-3.5 w-3.5" /></a>}
+                  {offer.funnelUrl && <a href={offer.funnelUrl} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white transition-colors" title="Ver funil de vendas"><Globe className="h-3.5 w-3.5" /></a>}
                 </div>
 
                 {offer.lowTicketSignals.length > 0 && (

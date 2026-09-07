@@ -1,4 +1,4 @@
-// CAÇAOFERTA — Service worker (FASES 01 + 06 + 11).
+// CAÇAOFERTA — Service worker (FASES 01 + 06 + 11 + MINERAÇÃO DIÁRIA).
 //
 // Router de mensagens: content script e popup falam com o backend apenas aqui.
 //
@@ -15,19 +15,21 @@
 //   saved-ads:score:get  GET    /api/saved-ads/:id/score
 //   saved-ads:favorite:toggle PATCH /api/saved-ads/:id/favorite
 //   saved-ads:compare    POST   /api/saved-ads/compare
+//   ads:ingest           POST   /api/ads/ingest         (batch ingest para mineração diária)
 //
 // Estratégia de cache de IDs salvos (chrome.storage.local) evita N requisições
 // por card — ver savedIdsCache.ts.
 //
 // Próximas fases: autenticação (AuthSession) entra aqui, antes do apiClient.
 
-import { APP_NAME, APP_VERSION, API_SAVED_ADS_PATH } from '@caca-oferta/shared';
+import { APP_NAME, APP_VERSION, API_SAVED_ADS_PATH, API_BASE_PATH } from '@caca-oferta/shared';
 import { createSavedAdsApiClient } from './apiClient';
 import { addSavedAdId, isSavedAdId, removeSavedAdId } from './savedIdsCache';
 import {
   RuntimeMessageType,
   RUNTIME_ERROR_CODES,
   runtimeFailure,
+  runtimeSuccess,
   type RuntimeRequest,
   type RuntimeResponse,
 } from '../bridge/messages';
@@ -109,6 +111,19 @@ async function handleRequest(message: RuntimeRequest): Promise<RuntimeResponse> 
     case RuntimeMessageType.CompareAds: {
       const { ids } = message as { ids: string[] };
       return api.request('POST', `${API_SAVED_ADS_PATH}/compare`, { ids });
+    }
+    // MINERAÇÃO DIÁRIA — Batch ingest
+    case RuntimeMessageType.IngestAds: {
+      const { ads } = message as { payload: { ads: any[] } };
+      if (!ads || !Array.isArray(ads) || ads.length === 0) {
+        return runtimeFailure(RUNTIME_ERROR_CODES.VALIDATION_ERROR, 'Nenhum anúncio para ingestar.');
+      }
+      const result = await api.request('POST', `${API_BASE_PATH}/ads/ingest`, { ads });
+      if (result.ok) {
+        const data = result.data as { data: { ingested: number } };
+        return runtimeSuccess({ ingested: data.data?.ingested ?? ads.length });
+      }
+      return result;
     }
     default:
       return runtimeFailure(RUNTIME_ERROR_CODES.MESSAGE_FAILED, 'Tipo de mensagem desconhecido.');

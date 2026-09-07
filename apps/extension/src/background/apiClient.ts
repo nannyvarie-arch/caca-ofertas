@@ -9,12 +9,15 @@
 
 import {
   API_BASE_URL,
+  API_BASE_PATH,
   API_SAVED_ADS_PATH,
   type SavedAdDto,
   type SavedAdListDto,
 } from '@caca-oferta/shared';
 import type { NormalizedAd } from '@caca-oferta/types';
 import { RUNTIME_ERROR_CODES, runtimeFailure, type RuntimeFailure } from '../bridge/messages';
+
+const DEFAULT_API_BASE_URL = 'http://127.0.0.1:3333';
 
 interface ApiErrorEnvelope {
   error?: {
@@ -23,21 +26,27 @@ interface ApiErrorEnvelope {
   };
 }
 
-const FALLBACK_MESSAGES: Record<string, string> = {
-  ALREADY_SAVED: 'Esta oferta já está salva.',
-  VALIDATION_ERROR: 'Dados inválidos para salvar a oferta.',
-  UNAUTHORIZED: 'Autenticação não disponível neste ambiente.',
-  NOT_FOUND: 'Oferta não encontrada.',
-};
+async function getApiBaseUrl(): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.sync.get(['apiBaseUrl'], (result) => {
+        resolve(result.apiBaseUrl ?? DEFAULT_API_BASE_URL);
+      });
+    } catch {
+      resolve(DEFAULT_API_BASE_URL);
+    }
+  });
+}
 
 async function httpRequest<T>(
   method: 'GET' | 'POST' | 'DELETE' | 'PATCH',
   path: string,
   body?: unknown,
 ): Promise<RuntimeFailure | { ok: true; data: T }> {
+  const baseUrl = await getApiBaseUrl();
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`${baseUrl}${path}`, {
       method,
       headers: body === undefined ? undefined : { 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -71,6 +80,13 @@ async function httpRequest<T>(
   const fallback = FALLBACK_MESSAGES[errorCode] ?? 'Não foi possível concluir a operação.';
   return runtimeFailure(errorCode, apiError?.error?.message ?? fallback);
 }
+
+const FALLBACK_MESSAGES: Record<string, string> = {
+  ALREADY_SAVED: 'Esta oferta já está salva.',
+  VALIDATION_ERROR: 'Dados inválidos para salvar a oferta.',
+  UNAUTHORIZED: 'Autenticação não disponível neste ambiente.',
+  NOT_FOUND: 'Oferta não encontrada.',
+};
 
 export interface SavedAdsApiClient {
   saveAd(payload: NormalizedAd): Promise<RuntimeFailure | { ok: true; data: SavedAdDto }>;

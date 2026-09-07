@@ -7,6 +7,28 @@ export interface DailyMiningRouteDeps {
   resolveUser: CurrentUserResolver;
 }
 
+const DAILY_TARGET = parseInt(process.env.DAILY_MINING_TARGET ?? '50', 10);
+const NICHES = [
+  'Emagrecimento/Fitness',
+  'Receitas/Culinária',
+  'Artesanato',
+  'Educação Infantil',
+  'Concursos/Estudos',
+  'Renda Extra/Empreendedorismo',
+  'Marketing Digital',
+  'Beleza',
+  'Maternidade',
+  'Relacionamentos',
+  'Finanças Pessoais',
+  'Desenvolvimento Pessoal',
+  'Idiomas',
+  'Espiritualidade',
+  'Casa/Organização',
+  'Pets',
+  'Saúde/Bem-estar',
+  'Intenção de Compra',
+];
+
 function buildAdLibraryUrl(pageId: string | null, adLibraryId: string, country?: string): string {
   const c = country ?? 'ALL';
   if (pageId) return `https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=${c}&view_all_page_id=${pageId}`;
@@ -34,6 +56,79 @@ function classifyTrend(snapshots: { activeAds: number; takenAt: Date }[]): strin
   return 'estavel';
 }
 
+function scoreOffer(offer: any): number {
+  let score = 0;
+  score += Math.min(offer.activeAds || 0, 50) * 2;
+  score += Math.min(offer.runningDays || 0, 30);
+  if (offer.isLowTicket) score += 20;
+  score += (offer.creativeCount || 0) * 0.5;
+  return score;
+}
+
+async function selectTopOffers(prisma: any, today: Date): Promise<{ selected: any[]; byNiche: Record<string, number> }> {
+  const perNiche = Math.ceil(DAILY_TARGET / NICHES.length);
+  const selected: any[] = [];
+  const byNiche: Record<string, number> = {};
+
+  for (const niche of NICHES) {
+    const candidates = await prisma.offer.findMany({
+      where: {
+        niche: niche,
+        isLowTicket: true,
+        lastRunDate: { gte: today },
+      },
+      include: {
+        snapshots: {
+          orderBy: { takenAt: 'desc' },
+          take: 10,
+        },
+      },
+      take: perNiche * 2,
+    });
+
+    const scored = candidates.map((o: any) => ({
+      ...o,
+      _score: scoreOffer(o.snapshots[0] || {}),
+    })).sort((a: any, b: any) => b._score - a._score);
+
+    const nicheSelected = scored.slice(0, perNiche);
+    for (const offer of nicheSelected) {
+      selected.push(offer);
+      byNiche[niche] = (byNiche[niche] || 0) + 1;
+    }
+  }
+
+  if (selected.length < DAILY_TARGET) {
+    const remaining = DAILY_TARGET - selected.length;
+    const allCandidates = await prisma.offer.findMany({
+      where: {
+        isLowTicket: true,
+        lastRunDate: { gte: today },
+        id: { notIn: selected.map((o: any) => o.id) },
+      },
+      include: {
+        snapshots: {
+          orderBy: { takenAt: 'desc' },
+          take: 10,
+        },
+      },
+      take: remaining * 2,
+    });
+
+    const scored = allCandidates.map((o: any) => ({
+      ...o,
+      _score: scoreOffer(o.snapshots[0] || {}),
+    })).sort((a: any, b: any) => b._score - a._score);
+
+    for (const offer of scored.slice(0, remaining)) {
+      selected.push(offer);
+      byNiche[offer.niche || 'Outros'] = (byNiche[offer.niche || 'Outros'] || 0) + 1;
+    }
+  }
+
+  return { selected: selected.slice(0, DAILY_TARGET), byNiche };
+}
+
 export function registerDailyMiningRoutes(app: FastifyInstance, deps: DailyMiningRouteDeps): void {
   const prisma = getPrisma();
 
@@ -57,6 +152,8 @@ export function registerDailyMiningRoutes(app: FastifyInstance, deps: DailyMinin
 
     let adsFound = 0;
     let offersUpserted = 0;
+    let selectedCount = 0;
+    let distribution: Record<string, number> = {};
 
     try {
       const pendingIngests = (global as any).__pendingIngests ?? [];
@@ -115,9 +212,29 @@ export function registerDailyMiningRoutes(app: FastifyInstance, deps: DailyMinin
         (global as any).__pendingIngests = [];
       }
 
+      // Select top offers for the daily target
+      const { selected, byNiche } = await selectTopOffers(prisma, today);
+      selectedCount = selected.length;
+      distribution = byNiche;
+
+      // Update selected offers to mark them as part of today's batch
+      for (const offer of selected) {
+        await prisma.offer.update({
+          where: { id: offer.id },
+          data: { qualification: 'qualificada', lastRunDate: today },
+        });
+      }
+
       await prisma.dailyMiningRun.update({
         where: { id: run.id },
-        data: { status: 'done', adsFound, offersUpserted, finishedAt: new Date() },
+        data: {
+          status: selectedCount > 0 ? 'done' : 'failed',
+          adsFound,
+          offersUpserted,
+          keywordsUsed: JSON.stringify({ target: DAILY_TARGET, selected: selectedCount, distribution }),
+          errorMessage: selectedCount === 0 ? 'Sem coleta real — extensão não rodou ou não há dados' : null,
+          finishedAt: new Date(),
+        },
       });
     } catch (err: any) {
       await prisma.dailyMiningRun.update({
@@ -126,11 +243,17 @@ export function registerDailyMiningRoutes(app: FastifyInstance, deps: DailyMinin
       });
     }
 
-    return { success: true, data: { id: run.id, status: 'done', adsFound, offersUpserted } };
+    return { success: true, data: { id: run.id, status: 'done', adsFound, offersUpserted, selectedCount, distribution, target: DAILY_TARGET } };
   });
 
   app.get('/api/mining/daily/runs', async () => {
     const runs = await prisma.dailyMiningRun.findMany({ orderBy: { runDate: 'desc' }, take: 30 });
     return { success: true, data: runs.map(r => ({ ...r, runDate: r.runDate?.toISOString?.() ?? r.runDate })) };
+  });
+
+  app.get('/api/mining/daily/last', async () => {
+    const run = await prisma.dailyMiningRun.findFirst({ orderBy: { runDate: 'desc' } });
+    if (!run) return { success: true, data: null };
+    return { success: true, data: { ...run, runDate: run.runDate?.toISOString?.() ?? run.runDate } };
   });
 }

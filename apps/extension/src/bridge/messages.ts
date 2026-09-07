@@ -28,6 +28,8 @@ export const RuntimeMessageType = {
   ToggleFavorite: 'saved-ads:favorite:toggle',
   // FASE 11 — Comparação
   CompareAds: 'saved-ads:compare',
+  // MINERAÇÃO DIÁRIA — Batch ingest de anúncios coletados
+  IngestAds: 'ads:ingest',
 } as const;
 
 export type RuntimeMessageTypeValue = (typeof RuntimeMessageType)[keyof typeof RuntimeMessageType];
@@ -55,7 +57,9 @@ export type RuntimeRequest =
   // FASE 11 — Favoritos
   | { type: typeof RuntimeMessageType.ToggleFavorite; id: string }
   // FASE 11 — Comparação
-  | { type: typeof RuntimeMessageType.CompareAds; ids: string[] };
+  | { type: typeof RuntimeMessageType.CompareAds; ids: string[] }
+  // MINERAÇÃO DIÁRIA — Batch ingest
+  | { type: typeof RuntimeMessageType.IngestAds; payload: { ads: NormalizedAd[] } };
 
 export type RuntimeSuccess<T> = { ok: true; data: T };
 export type RuntimeFailure = { ok: false; code: string; message: string };
@@ -84,3 +88,4 @@ export function runtimeFailure(code: string, message: string): RuntimeFailure {
 
 export type SavedAdSaveResult = RuntimeResponse<SavedAdDto>;
 export type SavedAdListResult = RuntimeResponse<SavedAdListDto>;
+export type IngestAdsResult = RuntimeResponse<{ ingested: number }>;

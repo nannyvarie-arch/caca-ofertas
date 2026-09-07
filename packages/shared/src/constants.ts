@@ -8,8 +8,9 @@ export const API_BASE_PATH = `/api/${API_VERSION}`;
 
 // URL base da API local em desenvolvimento (FASE 06). Em produção, a extensão
 // apontará para a API hospedada — serviço do backend via env do servidor.
+// Valor padrão; pode ser sobrescrito via chrome.storage.sync na extensão.
 export const API_BASE_URL = 'http://127.0.0.1:3333';
 
-// Rota de ofertas salvas — espelha EXATAMENTE o caminho registrado no backend
-// (apps/api/src/routes/savedAds.ts), nunca duplicar o prefixo.
+// Rotas de API
 export const API_SAVED_ADS_PATH = '/api/saved-ads';
+export const API_ADS_INGEST_PATH = '/api/ads/ingest';
