@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /obrigado.html
+Disallow: /design-system.html

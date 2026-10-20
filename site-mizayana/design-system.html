@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Design System · Mizayana Oliveira</title>
+  <link rel="icon" type="image/png" href="assets/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <style>
+    .ds-hero { background: var(--navy-800); color: #fff; padding: 4rem 0 3rem; }
+    .ds-hero h1 { color: #fff; font-size: var(--fs-2xl); margin-top: 1rem; }
+    .ds-hero p { color: rgba(255,255,255,.75); margin-top: .75rem; max-width: 60ch; }
+    .ds-section { padding: 3.5rem 0; border-bottom: 1px solid var(--line); }
+    .ds-section h2 { font-size: var(--fs-xl); margin: .75rem 0 1.75rem; }
+    .ds-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); }
+    .swatch { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #fff; font-size: var(--fs-xs); }
+    .swatch i { display: block; height: 96px; }
+    .swatch div { padding: .75rem; }
+    .swatch b { display: block; font-size: var(--fs-sm); color: var(--navy-800); }
+    .swatch code { color: var(--muted); }
+    .type-row { display: grid; gap: .5rem 2rem; padding: 1.25rem 0; border-top: 1px solid var(--line); }
+    @media (min-width: 760px) { .type-row { grid-template-columns: 200px 1fr; align-items: baseline; } }
+    .type-row small { color: var(--muted); font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase; }
+    .ds-panel { padding: 2rem; border-radius: var(--radius-lg); background: var(--navy-800); display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+    .ds-panel--light { background: var(--white); border: 1px solid var(--line); }
+    .ds-rules li { padding: .6rem 0 .6rem 1.4rem; position: relative; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+    .ds-rules li::before { content: ""; position: absolute; left: 0; top: 1.15em; width: 6px; height: 6px; transform: rotate(45deg); background: var(--gold-500); }
+    .ds-cols { display: grid; gap: 2rem; }
+    @media (min-width: 860px) { .ds-cols { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="ds-hero">
+    <div class="container">
+      <div class="brand">
+        <img class="brand__mark" src="assets/img/monograma.png" alt="" width="289" height="256">
+        <span class="brand__divider" aria-hidden="true"></span>
+        <span class="brand__text"><span class="brand__name">Mizayana<br>Oliveira</span><span class="brand__tag">Serviços Contábeis</span></span>
+      </div>
+      <h1>Design System</h1>
+      <p>Guia de identidade visual para o site e as peças digitais. Todos os valores estão como variáveis em <code>assets/css/style.css</code>.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="ds-section">
+      <span class="eyebrow">01 · Cores</span>
+      <h2>Paleta oficial e apoio</h2>
+      <div class="ds-grid">
+        <div class="swatch"><i style="background:#082B4B"></i><div><b>Azul-marinho</b><code>#082B4B · --navy-800</code></div></div>
+        <div class="swatch"><i style="background:#D7B566"></i><div><b>Dourado</b><code>#D7B566 · --gold-500</code></div></div>
+        <div class="swatch"><i style="background:#FFFFFF"></i><div><b>Branco</b><code>#FFFFFF · --white</code></div></div>
+        <div class="swatch"><i style="background:#051F38"></i><div><b>Marinho profundo</b><code>#051F38 · --navy-900</code></div></div>
+        <div class="swatch"><i style="background:#0E3A63"></i><div><b>Marinho claro</b><code>#0E3A63 · --navy-700</code></div></div>
+        <div class="swatch"><i style="background:#A9853C"></i><div><b>Dourado texto</b><code>#A9853C · --gold-600</code></div></div>
+        <div class="swatch"><i style="background:#F7F1E6"></i><div><b>Creme</b><code>#F7F1E6 · --cream-100</code></div></div>
+        <div class="swatch"><i style="background:var(--gold-gradient)"></i><div><b>Dourado metálico</b><code>--gold-gradient</code></div></div>
+      </div>
+      <ul class="ds-rules" style="margin-top:1.5rem">
+        <li>Proporção recomendada: 60% azul-marinho/creme, 30% branco, 10% dourado.</li>
+        <li>Dourado sobre fundo claro: use <code>--gold-600</code> para textos (contraste acessível). <code>--gold-500</code> fica para fundos escuros, linhas e ícones.</li>
+        <li>O gradiente metálico é reservado a botões principais e ao nome da marca — nunca em blocos grandes.</li>
+      </ul>
+    </section>
+
+    <section class="ds-section">
+      <span class="eyebrow">02 · Tipografia</span>
+      <h2>Playfair Display + Montserrat</h2>
+      <div class="type-row"><small>Display · 600</small><span style="font-family:var(--font-display);font-size:var(--fs-3xl);color:var(--navy-800);line-height:1">Seu CNPJ em <em style="color:var(--gold-600);font-weight:500">boas mãos.</em></span></div>
+      <div class="type-row"><small>Título de seção</small><span style="font-family:var(--font-display);font-size:var(--fs-2xl);color:var(--navy-800)">Contabilidade com clareza.</span></div>
+      <div class="type-row"><small>Sobretítulo</small><span class="eyebrow">Nossos serviços</span></div>
+      <div class="type-row"><small>Texto de apoio</small><p class="lead">Abrimos, regularizamos e cuidamos do seu CNPJ, com orientação clara e atendimento próximo.</p></div>
+      <div class="type-row"><small>Corpo · 400</small><p>Montserrat em 16px, entrelinha 1,65. Frases curtas, voz ativa, sem jargões técnicos sem explicação.</p></div>
+    </section>
+
+    <section class="ds-section">
+      <span class="eyebrow">03 · Componentes</span>
+      <h2>Botões e chamadas</h2>
+      <div class="ds-cols">
+        <div class="ds-panel">
+          <a class="btn btn--gold" href="#">Solicitar atendimento</a>
+          <a class="btn btn--ghost" href="#">Falar no WhatsApp</a>
+        </div>
+        <div class="ds-panel ds-panel--light">
+          <a class="btn" href="#">Botão marinho</a>
+          <a class="btn btn--outline" href="#">Contorno</a>
+          <a class="link-arrow" href="#">Link com seta →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <span class="eyebrow">04 · Princípios</span>
+      <h2>Como a marca se comporta</h2>
+      <div class="ds-cols">
+        <ul class="ds-rules">
+          <li><strong>Elegância sóbria:</strong> muito respiro, linhas douradas finas, nada de brilho excessivo.</li>
+          <li><strong>Curvas douradas:</strong> remetem ao material impresso; use como detalhe, nunca como fundo principal.</li>
+          <li><strong>Foto real:</strong> sempre a Mizayana — nunca imagens de banco genéricas.</li>
+        </ul>
+        <ul class="ds-rules">
+          <li><strong>Voz:</strong> próxima, clara e segura. Fala “você”, explica siglas (DAS, CNO, CND).</li>
+          <li><strong>Assinatura:</strong> “Abrimos, regularizamos e cuidamos do seu CNPJ.”</li>
+          <li><strong>Ícones:</strong> traço fino (1,6px), dentro de círculo marinho com dourado.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

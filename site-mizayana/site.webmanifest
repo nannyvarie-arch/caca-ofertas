@@ -1,0 +1,12 @@
+{
+  "name": "Mizayana Oliveira · Serviços Contábeis",
+  "short_name": "Mizayana Oliveira",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#082B4B",
+  "theme_color": "#082B4B",
+  "icons": [
+    { "src": "assets/img/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "assets/img/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
