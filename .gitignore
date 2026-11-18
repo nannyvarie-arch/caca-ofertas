@@ -25,3 +25,8 @@ Thumbs.db
 .idea/
 .vscode/untracked
 .vercel
+
+# Graphify (arquivos locais da máquina)
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
